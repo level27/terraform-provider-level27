@@ -2,7 +2,7 @@
 
 ## Description
 
-This repository holds the cod for the Level27 Terraform plugin.
+This repository holds the code for the Level27 (https://level27.be) Terraform plugin.
 
 ## Documentation
 
