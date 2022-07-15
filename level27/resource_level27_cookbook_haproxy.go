@@ -1,5 +1,6 @@
 package level27
 
+/*
 import (
 	"context"
 	"fmt"
@@ -159,3 +160,4 @@ func resourceLevel27CookbookHaproxyDelete(ctx context.Context, d *schema.Resourc
 	log.Printf("resource_level27_cookbook_haproxy.go: Delete resource")
 	return cookbookDelete(d.Id(), meta)
 }
+*/

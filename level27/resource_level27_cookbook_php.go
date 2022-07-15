@@ -1,5 +1,6 @@
 package level27
 
+/*
 import (
 	"context"
 	"fmt"
@@ -192,3 +193,4 @@ func resourceLevel27CookbookPhpDelete(ctx context.Context, d *schema.ResourceDat
 	log.Printf("resource_level27_cookbook_php.go: Delete resource")
 	return cookbookDelete(d.Id(), meta)
 }
+*/

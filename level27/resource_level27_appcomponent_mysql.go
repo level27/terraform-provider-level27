@@ -1,5 +1,6 @@
 package level27
 
+/*
 import (
 	"fmt"
 	"log"
@@ -136,3 +137,4 @@ func resourceLevel27AppComponentMysqlDelete(d *schema.ResourceData, meta interfa
 	log.Printf("resource_level27_appcomponent_Mysql.go: Delete resource")
 	return nil
 }
+*/

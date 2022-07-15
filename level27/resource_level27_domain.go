@@ -1,5 +1,6 @@
 package level27
 
+/*
 import (
 	"encoding/json"
 	"fmt"
@@ -206,3 +207,4 @@ func checkDomainAvailability(name string, extension string) (bool, string) {
 	log.Printf("resource_level27_domain.go: Starting checkAvailability")
 	return true, "1"
 }
+*/

@@ -1,35 +1,47 @@
 package level27
 
+/*
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/level27/l27-go"
 )
 
-func cookbookParseID(id string) (string, string, diag.Diagnostics) {
+func cookbookParseID(id string) (int, int, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	parts := strings.SplitN(id, ":", 2)
 
 	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
-		diags = append(diags, diag.Diagnostic{
-			Severity: diag.Error,
-			Summary:  "Level27 API error",
-			Detail:   fmt.Sprintf("unexpected format of ID (%s), expected attribute1:attribute2", id),
-		})
+		appendDiagError(&diags, "Level27 API error", fmt.Sprintf("unexpected format of ID (%s), expected attribute1:attribute2", id))
+		return 0, 0, diags
 	}
 
-	return parts[0], parts[1], diags
+	systemID, err := strconv.Atoi(parts[0])
+
+	if err != nil {
+		appendDiagError(&diags, "Level27 API error", fmt.Sprintf("The system ID '%s' is not a valid numeric ID", parts[0]))
+	}
+
+	cookbookID, err := strconv.Atoi(parts[1])
+
+	if err != nil {
+		appendDiagError(&diags, "Level27 API error", fmt.Sprintf("The cookbook ID '%s' is not a valid numeric ID", parts[1]))
+	}
+
+	return systemID, cookbookID, diags
 }
 
-func cookbookStateRefresh(client *Client, systemID interface{}, cookbookID interface{}) resource.StateRefreshFunc {
+func cookbookStateRefresh(client *l27.Client, systemID interface{}, cookbookID interface{}) resource.StateRefreshFunc {
 	return func() (interface{}, string, error) {
-		cookbook, _ := client.SystemCookbook("GET", systemID, cookbookID, nil)
-		return cookbook.Cookbook, cookbook.Cookbook.Status, nil
+		cookbook := client.SystemCookbookDescribe(systemID.(int), cookbookID.(int))
+		return cookbook, cookbook.Status, nil
 	}
 }
 
@@ -53,9 +65,9 @@ func cookbookDelete(id string, meta interface{}) diag.Diagnostics {
 		return err
 	}
 
-	apiClient := meta.(*Client)
+	apiClient := meta.(*l27.Client)
 	var diags diag.Diagnostics
-	_, diags = apiClient.SystemCookbook("DELETE", systemID, cookbookID, nil)
+	apiClient.SystemCookbookDelete(systemID, cookbookID)
 	if diags != nil {
 		return diags
 	}
@@ -63,38 +75,40 @@ func cookbookDelete(id string, meta interface{}) diag.Diagnostics {
 	return nil
 }
 
-func cookbookCreate(ctx context.Context, d *schema.ResourceData, meta interface{}, systemID string, request CookbookRequest) diag.Diagnostics {
-	apiClient := meta.(*Client)
+func cookbookCreate(ctx context.Context, d *schema.ResourceData, meta interface{}, systemID int, request l27.CookbookRequest) diag.Diagnostics {
+	apiClient := meta.(*l27.Client)
 	var diags diag.Diagnostics
-	cookbook, diags := apiClient.SystemCookbook("CREATE", systemID, nil, request.String())
+	// TODO: Error handling
+	cookbook := apiClient.SystemCookbookAdd(systemID, &request)
 	if diags != nil {
 		return diags
 	}
 
-	createStateConf := cookbookStateConf(d, apiClient, systemID, cookbook.Cookbook.ID)
+	createStateConf := cookbookStateConf(d, apiClient, systemID, cookbook.Id)
 	_, createError := createStateConf.WaitForStateContext(ctx)
 	if createError != nil {
 		diags = append(diags, diag.Diagnostic{
 			Severity: diag.Error,
-			Summary:  fmt.Sprintf("Level27 %s cookbook error", request.Type),
+			Summary:  fmt.Sprintf("Level27 %s cookbook error", request.Cookbooktype),
 			Detail:   fmt.Sprintf("Error returned from Level27 API\n%v", createError.Error()),
 		})
 		return diags
 	}
 
-	d.SetId(fmt.Sprintf("%s:%d", systemID, cookbook.Cookbook.ID))
+	d.SetId(fmt.Sprintf("%s:%d", systemID, cookbook.Id))
 	return nil
 }
 
-func cookbookUpdate(ctx context.Context, d *schema.ResourceData, meta interface{}, request CookbookRequest) diag.Diagnostics {
-	apiClient := meta.(*Client)
+func cookbookUpdate(ctx context.Context, d *schema.ResourceData, meta interface{}, request l27.CookbookRequest) diag.Diagnostics {
+	apiClient := meta.(*l27.Client)
 	var diags diag.Diagnostics
 	systemID, cookbookID, diags := cookbookParseID(d.Id())
 	if diags != nil {
 		return diags
 	}
 
-	_, diags = apiClient.SystemCookbook("UPDATE", systemID, cookbookID, request.String())
+	// TODO: Error handling
+	apiClient.SystemCookbookUpdate(systemID, cookbookID, &request)
 	if diags != nil {
 		return diags
 	}
@@ -106,7 +120,7 @@ func cookbookUpdate(ctx context.Context, d *schema.ResourceData, meta interface{
 	return nil
 }
 
-func cookbookCreateParameters(d *schema.ResourceData, cookbookType string) CookbookRequest {
+func cookbookCreateParameters(d *schema.ResourceData, cookbookType string) l27.CookbookRequest {
 	cookbookParameters := make(map[string]interface{})
 	switch cookbookType {
 	case "docker":
@@ -169,14 +183,14 @@ func cookbookCreateParameters(d *schema.ResourceData, cookbookType string) Cookb
 		cookbookParameters["admin_port"] = d.Get("admin_port").(string)
 	}
 
-	r := CookbookRequest{
-		Type:               cookbookType,
+	r := l27.CookbookRequest{
+		Cookbooktype:       cookbookType,
 		Cookbookparameters: cookbookParameters,
 	}
 	return r
 }
 
-func cookbookStateConf(d *schema.ResourceData, apiClient *Client, systemID interface{}, cookbookID interface{}) *resource.StateChangeConf {
+func cookbookStateConf(d *schema.ResourceData, apiClient *l27.Client, systemID interface{}, cookbookID interface{}) *resource.StateChangeConf {
 	return &resource.StateChangeConf{
 		Pending:    []string{"to_create", "creating", "updating"},
 		Target:     []string{"ok"},
@@ -186,3 +200,4 @@ func cookbookStateConf(d *schema.ResourceData, apiClient *Client, systemID inter
 		MinTimeout: 5 * time.Second,
 	}
 }
+*/

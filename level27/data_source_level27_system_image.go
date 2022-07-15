@@ -1,6 +1,6 @@
 package level27
 
-import (
+/* import (
 	"context"
 	"fmt"
 	"log"
@@ -69,3 +69,4 @@ func dataSourceLevel27SystemImageRead(ctx context.Context, d *schema.ResourceDat
 
 	return nil
 }
+*/

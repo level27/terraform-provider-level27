@@ -1,5 +1,6 @@
 package level27
 
+/*
 import (
 	"encoding/json"
 	"fmt"
@@ -217,3 +218,4 @@ func resourceLevel27DomainContactUpdate(d *schema.ResourceData, meta interface{}
 }
 
 func resourceLevel27DomainContactDelete(d *schema.ResourceData, meta interface{}) error { return nil }
+*/

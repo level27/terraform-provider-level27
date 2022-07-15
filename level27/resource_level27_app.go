@@ -1,86 +1,184 @@
 package level27
 
 import (
-	"log"
+	"context"
 	"strconv"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-go/tftypes"
+	"github.com/level27/l27-go"
 )
 
-func resourceLevel27App() *schema.Resource {
+type resourceAppType struct {
+}
 
-	return &schema.Resource{
-		Create: resourceLevel27AppCreate,
-		Read:   resourceLevel27AppRead,
-		Delete: resourceLevel27AppDelete,
-		Update: resourceLevel27AppUpdate,
-		Importer: &schema.ResourceImporter{
-			State: schema.ImportStatePassthrough,
-		},
-		Schema: map[string]*schema.Schema{
+func (r resourceAppType) GetSchema(context.Context) (tfsdk.Schema, diag.Diagnostics) {
+	return tfsdk.Schema{
+		Attributes: map[string]tfsdk.Attribute{
+			"id": {
+				Computed: true,
+				Type:     types.StringType,
+			},
+			"organisation": {
+				Computed: true,
+				Optional: true,
+				Type:     types.StringType,
+			},
 			"name": {
 				Required: true,
-				Type:     schema.TypeString,
-			},
-			"organisation_id": {
-				Required: true,
-				Type:     schema.TypeString,
+				Type:     types.StringType,
 			},
 		},
-	}
+	}, nil
 }
 
-func resourceLevel27AppRead(d *schema.ResourceData, meta interface{}) error {
-	log.Printf("resource_level27_app.go: Read resource")
-
-	var app App
-	apiClient := meta.(*Client)
-
-	app = apiClient.App("GET", d.Id(), nil)
-
-	log.Printf("resource_level27_app.go: Read routine called. Object built: %d", app.App.ID)
-
-	d.SetId(strconv.Itoa(app.App.ID))
-	d.Set("name", app.App.Name)
-	d.Set("organisation_id", strconv.Itoa(app.App.Organisation.ID))
-	return nil
+func (r resourceAppType) NewResource(_ context.Context, p tfsdk.Provider) (tfsdk.Resource, diag.Diagnostics) {
+	return resourceApp{
+		p: p.(*provider),
+	}, nil
 }
 
-func resourceLevel27AppCreate(d *schema.ResourceData, meta interface{}) error {
-	log.Printf("resource_level27_app.go: Create resource")
-
-	var app App
-	apiClient := meta.(*Client)
-	request := AppRequest{
-		Name:         d.Get("name").(string),
-		Organisation: d.Get("organisation_id").(string),
-	}
-
-	app = apiClient.App("CREATE", nil, request.String())
-
-	d.SetId(strconv.Itoa(app.App.ID))
-	return resourceLevel27AppRead(d, meta)
+type resourceApp struct {
+	p *provider
 }
 
-func resourceLevel27AppUpdate(d *schema.ResourceData, meta interface{}) error {
-	log.Printf("resource_level27_app.go: Update resource")
+type resourceAppModel struct {
+	ID           types.String `tfsdk:"id"`
+	Organisation types.String `tfsdk:"organisation"`
+	Name         types.String `tfsdk:"name"`
+}
 
-	apiClient := meta.(*Client)
-	request := AppRequest{
-		Name:         d.Get("name").(string),
-		Organisation: d.Get("organisation_id").(string),
+func (r resourceApp) Create(ctx context.Context, req tfsdk.CreateResourceRequest, resp *tfsdk.CreateResourceResponse) {
+	// Retrieve values from plan
+	var plan resourceAppModel
+	diags := req.Plan.Get(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
 	}
 
-	apiClient.App("UPDATE", d.Id(), request.String())
+	orgID, ok := parseID(plan.Organisation.Value, &resp.Diagnostics)
+	if !ok {
+		return
+	}
 
-	return resourceLevel27AppRead(d, meta)
+	request := l27.AppPostRequest{
+		Name:         plan.Name.Value,
+		Organisation: orgID,
+	}
+
+	app, err := r.p.Client.AppCreate(request)
+	if err != nil {
+		resp.Diagnostics.AddError("Error creating app", "API request failed:\n"+err.Error())
+		return
+	}
+
+	result := resourceAppModel{
+		ID:           types.String{Value: strconv.Itoa(app.ID)},
+		Name:         types.String{Value: app.Name},
+		Organisation: types.String{Value: strconv.Itoa(app.Organisation.ID)},
+	}
+
+	diags = resp.State.Set(ctx, result)
+	resp.Diagnostics.Append(diags...)
 }
 
-func resourceLevel27AppDelete(d *schema.ResourceData, meta interface{}) error {
-	log.Printf("resource_level27_app.go: Delete resource")
+func (r resourceApp) Read(ctx context.Context, req tfsdk.ReadResourceRequest, resp *tfsdk.ReadResourceResponse) {
+	var state resourceAppModel
+	diags := req.State.Get(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
-	apiClient := meta.(*Client)
-	apiClient.App("DELETE", d.Id(), nil)
+	appID, ok := parseID(state.ID.Value, &resp.Diagnostics)
+	if !ok {
+		return
+	}
 
-	return nil
+	app, err := r.p.Client.App(appID)
+	if err != nil {
+		resp.Diagnostics.AddError("Error reading app", "API request failed:\n"+err.Error())
+		return
+	}
+
+	state.ID = types.String{Value: strconv.Itoa(app.ID)}
+	state.Name = types.String{Value: app.Name}
+	state.Organisation = types.String{Value: strconv.Itoa(app.Organisation.ID)}
+
+	diags = resp.State.Set(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+}
+
+func (r resourceApp) Update(ctx context.Context, req tfsdk.UpdateResourceRequest, resp *tfsdk.UpdateResourceResponse) {
+	// Get plan values
+	var plan resourceAppModel
+	diags := req.Plan.Get(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Get current state
+	var state resourceAppModel
+	diags = req.State.Get(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	appID, ok := parseID(state.ID.Value, &resp.Diagnostics)
+	if !ok {
+		return
+	}
+
+	orgID, ok := parseID(plan.Organisation.Value, &resp.Diagnostics)
+	if !ok {
+		return
+	}
+
+	request := l27.AppPutRequest{
+		Name:         plan.Name.Value,
+		Organisation: orgID,
+	}
+
+	err := r.p.Client.AppUpdate(appID, request)
+	if err != nil {
+		resp.Diagnostics.AddError("Error updating app", "API request failed:\n"+err.Error())
+		return
+	}
+
+	state.Name = plan.Name
+	state.Organisation = plan.Organisation
+
+	diags = resp.State.Set(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+}
+
+func (r resourceApp) Delete(ctx context.Context, req tfsdk.DeleteResourceRequest, resp *tfsdk.DeleteResourceResponse) {
+	var state resourceAppModel
+	diags := req.State.Get(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	appID, ok := parseID(state.ID.Value, &resp.Diagnostics)
+	if !ok {
+		return
+	}
+
+	err := r.p.Client.AppDelete(appID)
+	if err != nil {
+		resp.Diagnostics.AddError("Error destroying app", "API request failed:\n"+err.Error())
+		return
+	}
+
+	resp.State.RemoveResource(ctx)
+}
+
+func (r resourceApp) ImportState(ctx context.Context, req tfsdk.ImportResourceStateRequest, resp *tfsdk.ImportResourceStateResponse) {
+	tfsdk.ResourceImportStatePassthroughID(ctx, tftypes.NewAttributePath().WithAttributeName("id"), req, resp)
 }

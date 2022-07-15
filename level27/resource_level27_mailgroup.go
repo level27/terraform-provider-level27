@@ -1,5 +1,6 @@
 package level27
 
+/*
 import (
 	"encoding/json"
 	"fmt"
@@ -185,3 +186,4 @@ func containsInt(a []int, x int) bool {
 	}
 	return false
 }
+*/

@@ -1,5 +1,6 @@
 package level27
 
+/*
 import (
 	"log"
 
@@ -75,3 +76,4 @@ func resourceLevel27UserUpdate(d *schema.ResourceData, meta interface{}) error {
 func resourceLevel27UserDelete(d *schema.ResourceData, meta interface{}) error {
 	return nil
 }
+*/

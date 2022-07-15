@@ -1,5 +1,6 @@
 package level27
 
+/*
 import (
 	"context"
 	"fmt"
@@ -115,3 +116,4 @@ func resourceLevel27CookbookMemcachedDelete(ctx context.Context, d *schema.Resou
 	log.Printf("resource_level27_cookbook_memcached.go: Delete resource")
 	return cookbookDelete(d.Id(), meta)
 }
+*/

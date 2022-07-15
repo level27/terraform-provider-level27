@@ -1,5 +1,6 @@
 package level27
 
+/*
 import (
 	"context"
 	"strconv"
@@ -53,3 +54,4 @@ func dataSourceLevel27NetworkRead(ctx context.Context, d *schema.ResourceData, m
 
 	return nil
 }
+*/

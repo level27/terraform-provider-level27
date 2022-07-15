@@ -1,5 +1,6 @@
 package level27
 
+/*
 import (
 	"encoding/json"
 	"fmt"
@@ -150,3 +151,4 @@ func resourceLevel27DomainRecordDelete(d *schema.ResourceData, meta interface{})
 	d.SetId("")
 	return nil
 }
+*/

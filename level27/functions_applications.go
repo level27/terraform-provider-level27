@@ -2,8 +2,21 @@ package level27
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
+
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 )
+
+func parseID(id string, diags *diag.Diagnostics) (int, bool) {
+	val, err := strconv.Atoi(id)
+	if err != nil {
+		diags.AddError("Invalid entity ID", fmt.Sprintf("'%s' is not a valid numeric entity ID"))
+		return 0, false
+	}
+
+	return val, true
+}
 
 func appComponentParseID(id string) (string, string, error) {
 	parts := strings.SplitN(id, ":", 2)

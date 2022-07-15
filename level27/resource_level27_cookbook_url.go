@@ -1,5 +1,6 @@
 package level27
 
+/*
 import (
 	"context"
 	"fmt"
@@ -137,3 +138,4 @@ func resourceLevel27CookbookURLDelete(ctx context.Context, d *schema.ResourceDat
 	log.Printf("resource_level27_cookbook_url.go: Delete resource")
 	return cookbookDelete(d.Id(), meta)
 }
+*/

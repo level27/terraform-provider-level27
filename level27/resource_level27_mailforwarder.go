@@ -1,5 +1,6 @@
 package level27
 
+/*
 import (
 	"encoding/json"
 	"fmt"
@@ -125,3 +126,4 @@ func resourceLevel27MailforwarderDelete(d *schema.ResourceData, meta interface{}
 
 	return nil
 }
+*/

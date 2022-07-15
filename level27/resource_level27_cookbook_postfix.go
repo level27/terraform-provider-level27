@@ -1,5 +1,6 @@
 package level27
 
+/*
 import (
 	"context"
 	"fmt"
@@ -104,3 +105,4 @@ func resourceLevel27CookbookPostfixDelete(ctx context.Context, d *schema.Resourc
 	log.Printf("resource_level27_cookbook_postfix.go: Delete resource")
 	return cookbookDelete(d.Id(), meta)
 }
+*/

@@ -1,5 +1,6 @@
 package level27
 
+/*
 import (
 	"context"
 	"fmt"
@@ -59,3 +60,4 @@ func dataSourceLevel27SystemProviderRead(ctx context.Context, d *schema.Resource
 
 	return nil
 }
+*/

@@ -1,5 +1,6 @@
 package level27
 
+/*
 import (
 	"fmt"
 	"log"
@@ -323,3 +324,4 @@ func flattenNetworks(system *System) map[string][]string {
 	sort.Strings(networks["ids"])
 	return networks
 }
+*/

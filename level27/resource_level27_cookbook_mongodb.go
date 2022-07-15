@@ -1,5 +1,6 @@
 package level27
 
+/*
 import (
 	"context"
 	"fmt"
@@ -107,3 +108,4 @@ func resourceLevel27CookbookMongodbDelete(ctx context.Context, d *schema.Resourc
 	log.Printf("resource_level27_cookbook_mongodb.go: Delete resource")
 	return cookbookDelete(d.Id(), meta)
 }
+*/

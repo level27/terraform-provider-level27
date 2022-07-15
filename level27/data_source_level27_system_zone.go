@@ -1,5 +1,6 @@
 package level27
 
+/*
 import (
 	"context"
 	"fmt"
@@ -21,8 +22,8 @@ func dataSourceLevel27SystemZone() *schema.Resource {
 				Optional:     true,
 				Default:      "be",
 				ValidateFunc: validation.StringInSlice([]string{"be", "ams", "blr", "eu-central-1", "eu-west-1", "fra", "lon", "nyc", "sfo", "sgp", "tor"}, true),
-				Description: `The region for the specified zone.  
-Possible values:  
+				Description: `The region for the specified zone.
+Possible values:
   - be (Default)
   - ams
   - blr
@@ -40,8 +41,8 @@ Possible values:
 				Optional:     true,
 				Default:      "BRUIX1Z1",
 				ValidateFunc: validation.StringInSlice([]string{"BRUIX2", "BRUIX2-C", "BRUIX1Z1", "BRUIX1Z2", "1", "2", "3", "a", "b", "c", "be2"}, true),
-				Description: `The region for the specified zone.  
-Possible values:  
+				Description: `The region for the specified zone.
+Possible values:
   - be
     - BRUIX1Z1 (Default)
     - BRUIX1Z2
@@ -117,3 +118,4 @@ func dataSourceLevel27SystemZoneRead(ctx context.Context, d *schema.ResourceData
 
 	return nil
 }
+*/

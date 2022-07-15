@@ -1,5 +1,6 @@
 package level27
 
+/*
 import (
 	"context"
 	"fmt"
@@ -92,3 +93,4 @@ func resourceLevel27CookbookDockerDelete(ctx context.Context, d *schema.Resource
 	log.Printf("resource_level27_cookbook_docker.go: Delete resource")
 	return cookbookDelete(d.Id(), meta)
 }
+*/
