@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"os"
+	"sync"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
@@ -67,7 +68,10 @@ func Provider() tfsdk.Provider {
 }
 
 type provider struct {
-	Client *l27.Client
+	Client     *l27.Client
+	loginInfo  *l27.Login
+	loginError error
+	loginMutex sync.Mutex
 }
 
 // Provider schema struct
@@ -147,6 +151,30 @@ func (p *provider) GetDataSources(_ context.Context) (map[string]tfsdk.DataSourc
 	return map[string]tfsdk.DataSourceType{
 		//"hashicups_coffees": dataSourceCoffeesType{},
 	}, nil
+}
+
+// Fetches the login info for the configured API key. Is cached, so a request only happens once.
+func (p *provider) GetLoginInfo() (l27.Login, error) {
+	// Mutex to avoid
+	p.loginMutex.Lock()
+	defer p.loginMutex.Unlock()
+
+	if p.loginError != nil {
+		return l27.Login{}, p.loginError
+	}
+
+	if p.loginInfo != nil {
+		return *p.loginInfo, nil
+	}
+
+	login, err := p.Client.LoginInfo()
+	if err != nil {
+		p.loginError = err
+		return l27.Login{}, err
+	} else {
+		p.loginInfo = &login
+		return login, nil
+	}
 }
 
 type tfTracer struct {
