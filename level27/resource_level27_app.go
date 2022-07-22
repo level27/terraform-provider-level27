@@ -18,13 +18,17 @@ func (r resourceAppType) GetSchema(context.Context) (tfsdk.Schema, diag.Diagnost
 	return tfsdk.Schema{
 		Attributes: map[string]tfsdk.Attribute{
 			"id": {
-				Computed: true,
-				Type:     types.StringType,
+				Computed:      true,
+				Type:          types.StringType,
+				PlanModifiers: tfsdk.AttributePlanModifiers{tfsdk.UseStateForUnknown()},
+				Validators:    []tfsdk.AttributeValidator{validateID()},
 			},
 			"organisation": {
-				Computed: true,
-				Optional: true,
-				Type:     types.StringType,
+				Computed:      true,
+				Optional:      true,
+				Type:          types.StringType,
+				PlanModifiers: tfsdk.AttributePlanModifiers{tfsdk.UseStateForUnknown()},
+				Validators:    []tfsdk.AttributeValidator{validateID()},
 			},
 			"name": {
 				Required: true,
