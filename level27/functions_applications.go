@@ -11,7 +11,7 @@ import (
 func parseID(id string, diags *diag.Diagnostics) (int, bool) {
 	val, err := strconv.Atoi(id)
 	if err != nil {
-		diags.AddError("Invalid entity ID", fmt.Sprintf("'%s' is not a valid numeric entity ID"))
+		diags.AddError("Invalid entity ID", fmt.Sprintf("'%s' is not a valid numeric entity ID", id))
 		return 0, false
 	}
 
