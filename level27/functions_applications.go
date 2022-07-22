@@ -18,14 +18,24 @@ func parseID(id string, diags *diag.Diagnostics) (int, bool) {
 	return val, true
 }
 
-func appComponentParseID(id string) (string, string, error) {
+func appComponentParseID(id string) (int, int, error) {
 	parts := strings.SplitN(id, ":", 2)
 
 	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
-		return "", "", fmt.Errorf("unexpected format of ID (%s), expected attribute1:attribute2", id)
+		return 0, 0, fmt.Errorf("unexpected format of ID (%s), expected attribute1:attribute2", id)
 	}
 
-	return parts[0], parts[1], nil
+	id0, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return 0, 0, fmt.Errorf("unexpected format of ID (%s), expected attribute1:attribute2", id)
+	}
+
+	id1, err := strconv.Atoi(parts[1])
+	if err != nil {
+		return 0, 0, fmt.Errorf("unexpected format of ID (%s), expected attribute1:attribute2", id)
+	}
+
+	return id0, id1, nil
 }
 
 func appComponentURLParseID(id string) (string, string, string, error) {
