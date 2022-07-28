@@ -1,200 +1,251 @@
 package level27
 
-/*
 import (
-	"encoding/json"
+	"context"
 	"fmt"
-	"log"
 	"strconv"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-go/tftypes"
+	"github.com/level27/l27-go"
 )
 
-func resourceLevel27Domain() *schema.Resource {
+type resourceDomainType struct{}
 
-	return &schema.Resource{
-		Create: resourceLevel27DomainCreate,
-		Read:   resourceLevel27DomainRead,
-		Delete: resourceLevel27DomainDelete,
-		Update: resourceLevel27DomainUpdate,
-		Importer: &schema.ResourceImporter{
-			State: schema.ImportStatePassthrough,
-		},
-		Schema: map[string]*schema.Schema{
+func (r resourceDomainType) GetSchema(context.Context) (tfsdk.Schema, diag.Diagnostics) {
+	attrNameserver := tfsdk.Attribute{
+		Type:     types.StringType,
+		Optional: true,
+	}
+
+	return tfsdk.Schema{
+		Attributes: map[string]tfsdk.Attribute{
+			"id": {
+				Computed:      true,
+				Type:          types.StringType,
+				PlanModifiers: tfsdk.AttributePlanModifiers{tfsdk.UseStateForUnknown()},
+				Validators:    []tfsdk.AttributeValidator{validateID()},
+			},
+			"organisation": {
+				Computed:      true,
+				Optional:      true,
+				Type:          types.StringType,
+				PlanModifiers: tfsdk.AttributePlanModifiers{tfsdk.UseStateForUnknown()},
+				Validators:    []tfsdk.AttributeValidator{validateID()},
+			},
 			"name": {
-				Type:        schema.TypeString,
-				Description: "Name of the domain",
-				Required:    true,
-				ForceNew:    true,
+				Required:      true,
+				Type:          types.StringType,
+				PlanModifiers: tfsdk.AttributePlanModifiers{tfsdk.UseStateForUnknown(), tfsdk.RequiresReplace()},
+			},
+			"full_name": {
+				Computed:      true,
+				Type:          types.StringType,
+				PlanModifiers: tfsdk.AttributePlanModifiers{tfsdk.UseStateForUnknown()},
 			},
 			"extension": {
-				Type:        schema.TypeString,
-				Description: "Extension of the domain",
-				Required:    true,
-				ForceNew:    true,
+				Required:      true,
+				Type:          types.StringType,
+				PlanModifiers: tfsdk.AttributePlanModifiers{tfsdk.RequiresReplace()},
 			},
-			"action": {
-				Type:        schema.TypeString,
-				Required:    true,
-				Description: "one of none, create, transfer, transferFromQuarantine",
-				ForceNew:    false,
+			"contact_licensee": {
+				Required:   true,
+				Type:       types.StringType,
+				Validators: []tfsdk.AttributeValidator{validateID()},
 			},
-			"organisation_id": {
-				Type:        schema.TypeString,
-				Required:    true,
-				Description: "The id of the owning organisation",
-				ForceNew:    false,
-			},
-			"domain_contact_licensee_id": {
-				Type:        schema.TypeString,
-				Required:    true,
-				Description: "The id of the domain contact",
-				ForceNew:    false,
+			"contact_onsite": {
+				Type:       types.StringType,
+				Optional:   true,
+				Validators: []tfsdk.AttributeValidator{validateID()},
 			},
 			"handle_dns": {
-				Type:        schema.TypeBool,
-				Optional:    true,
-				Description: "If true, use the Level27 nameservers",
-				ForceNew:    false,
+				Type:          types.BoolType,
+				Computed:      true,
+				Optional:      true,
+				PlanModifiers: tfsdk.AttributePlanModifiers{DefaultValue(types.Bool{Value: true})},
+			},
+			"name_server_1":      attrNameserver,
+			"name_server_2":      attrNameserver,
+			"name_server_3":      attrNameserver,
+			"name_server_4":      attrNameserver,
+			"name_server_1_ip":   attrNameserver,
+			"name_server_2_ip":   attrNameserver,
+			"name_server_3_ip":   attrNameserver,
+			"name_server_4_ip":   attrNameserver,
+			"name_server_1_ipv6": attrNameserver,
+			"name_server_2_ipv6": attrNameserver,
+			"name_server_3_ipv6": attrNameserver,
+			"name_server_4_ipv6": attrNameserver,
+			"ttl": {
+				Type:     types.Int64Type,
+				Computed: true,
+				Optional: true,
+				// Default is 8hrs, same as lvl
+				PlanModifiers: tfsdk.AttributePlanModifiers{DefaultValue(types.Int64{Value: 28800})},
+			},
+			"teams": {
+				Type:          types.ListType{}.WithElementType(types.StringType),
+				Computed:      true,
+				PlanModifiers: tfsdk.AttributePlanModifiers{DefaultValue(types.List{ElemType: types.StringType})},
 			},
 		},
-	}
+	}, nil
 }
 
-func resourceLevel27DomainCreate(d *schema.ResourceData, meta interface{}) error {
-	log.Printf("resource_level27_domain.go: Starting Create")
-	var domain Domain
-	domainExtensions, _ := getDomainExtensions(d, meta)
-	log.Printf("resource_level27_domain.go: Domain extension: %s wit ID:%d", d.Get("extension").(string), domainExtensions[d.Get("extension").(string)])
-
-	request := DomainRequest{
-		Name:                  d.Get("name").(string),
-		Action:                d.Get("action").(string),
-		Domaintype:            domainExtensions[d.Get("extension").(string)],
-		Domaincontactlicensee: d.Get("domain_contact_licensee_id").(string),
-		Organisation:          d.Get("organisation_id").(string),
-		Handledns:             d.Get("handle_dns").(bool),
-	}
-	apiClient := meta.(*Client)
-	endpoint := "domains"
-
-	body, err := apiClient.sendRequest("POST", endpoint, request.String())
-
-	if err != nil {
-		log.Printf("resource_level27_domain.go: No Domain created: %s", err)
-		d.SetId("")
-		return nil
-	}
-
-	err = json.Unmarshal(body, &domain)
-	if err != nil {
-		return err
-	}
-
-	// Only check availability when registering
-	//available, domainTypeId := checkDomainAvailability(d.Get("name").(string), d.Get("extension").(string))
-	//log.Printf("Avalable: %t", available)
-	//log.Printf("domaintype: %s", domainTypeId)
-
-	// Create is OK, we now set the properties of the object
-	d.SetId(strconv.Itoa(domain.Domain.ID))
-	return resourceLevel27DomainRead(d, meta)
+func (r resourceDomainType) NewResource(_ context.Context, p tfsdk.Provider) (tfsdk.Resource, diag.Diagnostics) {
+	return resourceDomain{
+		p: p.(*provider),
+	}, nil
 }
 
-func resourceLevel27DomainRead(d *schema.ResourceData, meta interface{}) error {
-	log.Printf("resource_level27_domain.go: Starting Read")
-	var domain Domain
-	apiClient := meta.(*Client)
-	log.Printf("resource_level27_domain.go: Resource id: %s", d.Id())
-
-	endpoint := fmt.Sprintf("domains/%s", d.Id())
-
-	body, err := apiClient.sendRequest("GET", endpoint, "")
-	if err != nil {
-		log.Printf("resource_level27_domain.go: No Domain found: %s", d.Id())
-		d.SetId("")
-		return nil
-	}
-
-	err = json.Unmarshal(body, &domain)
-	if err != nil {
-		return err
-	}
-
-	log.Printf("resource_level27_domain.go: Read routine called. Object built: %d", domain.Domain.ID)
-
-	d.SetId(strconv.Itoa(domain.Domain.ID))
-	d.Set("name", domain.Domain.Name)
-	d.Set("extension", domain.Domain.Domaintype.Extension)
-	d.Set("organisation_id", strconv.Itoa(domain.Domain.Organisation.ID))
-	d.Set("domain_contact_licensee_id", strconv.Itoa(domain.Domain.DomaincontactLicensee.ID))
-	d.Set("handle_dns", domain.Domain.DNSIsHandled)
-
-	return nil
+type resourceDomain struct {
+	p *provider
 }
 
-func resourceLevel27DomainUpdate(d *schema.ResourceData, meta interface{}) error {
-	log.Printf("resource_level27_domain.go: Starting Update")
-
-	domainExtensions, _ := getDomainExtensions(d, meta)
-
-	request := DomainRequest{
-		Name:                  d.Get("name").(string),
-		Action:                d.Get("action").(string),
-		Domaintype:            domainExtensions[d.Get("extension").(string)],
-		Domaincontactlicensee: d.Get("domain_contact_licensee_id").(string),
-		Organisation:          d.Get("organisation_id").(string),
-		Handledns:             d.Get("handle_dns").(bool),
-	}
-	apiClient := meta.(*Client)
-	endpoint := fmt.Sprintf("domains/%s", d.Id())
-
-	_, err := apiClient.sendRequest("PUT", endpoint, request.String())
-
-	if err != nil {
-		log.Printf("resource_level27_domain.go: No Domain updated: %s", err)
-		d.SetId("")
-		return nil
-	}
-
-	return resourceLevel27DomainRead(d, meta)
+type resourceDomainModel struct {
+	ID              types.String `tfsdk:"id"`
+	Organisation    types.String `tfsdk:"organisation"`
+	Name            types.String `tfsdk:"name"`
+	FullName        types.String `tfsdk:"full_name"`
+	Extension       types.String `tfsdk:"extension"`
+	ContactLicensee types.String `tfsdk:"contact_licensee"`
+	ContactOnsite   types.String `tfsdk:"contact_onsite"`
+	HandleDns       types.Bool   `tfsdk:"handle_dns"`
+	NameServer1     types.String `tfsdk:"name_server_1"`
+	NameServer2     types.String `tfsdk:"name_server_2"`
+	NameServer3     types.String `tfsdk:"name_server_3"`
+	NameServer4     types.String `tfsdk:"name_server_4"`
+	NameServer1Ip   types.String `tfsdk:"name_server_1_ip"`
+	NameServer2Ip   types.String `tfsdk:"name_server_2_ip"`
+	NameServer3Ip   types.String `tfsdk:"name_server_3_ip"`
+	NameServer4Ip   types.String `tfsdk:"name_server_4_ip"`
+	NameServer1Ipv6 types.String `tfsdk:"name_server_1_ipv6"`
+	NameServer2Ipv6 types.String `tfsdk:"name_server_2_ipv6"`
+	NameServer3Ipv6 types.String `tfsdk:"name_server_3_ipv6"`
+	NameServer4Ipv6 types.String `tfsdk:"name_server_4_ipv6"`
+	Teams           types.List   `tfsdk:"teams"`
+	Ttl             types.Int64  `tfsdk:"ttl"`
 }
 
-func resourceLevel27DomainDelete(d *schema.ResourceData, meta interface{}) error {
-	endpoint := fmt.Sprintf("domains/%s", d.Id())
-	apiClient := meta.(*Client)
-	_, err := apiClient.sendRequest("DELETE", endpoint, "")
-	if err != nil {
-		log.Printf("resource_level27_domain.go: No Domain deleted: %s", d.Id())
-		return nil
+func (r resourceDomain) Create(ctx context.Context, req tfsdk.CreateResourceRequest, resp *tfsdk.CreateResourceResponse) {
+	var plan resourceDomainModel
+	diags := req.Plan.Get(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
 	}
 
-	d.SetId("")
-	return nil
+	orgID := organisationOrDefault(r.p, plan.Organisation, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var request l27.DomainRequest
+	domainRequestFrom(r, orgID, plan, &resp.Diagnostics, &request)
+
+	domain, err := r.p.Client.DomainCreate(request)
+	if err != nil {
+		resp.Diagnostics.AddError("Error creating domain", "API request failed:\n"+err.Error())
+		return
+	}
+
+	result := domainModelFrom(domain)
+
+	diags = resp.State.Set(ctx, result)
+	resp.Diagnostics.Append(diags...)
 }
 
-func getDomainExtensions(d *schema.ResourceData, meta interface{}) (map[string]int, error) {
-	log.Printf("resource_level27_domain.go: Start getDomainExtension")
-	var domainProviders DomainProvider
-	apiClient := meta.(*Client)
-	endpoint := "domains/providers"
-
-	body, err := apiClient.sendRequest("GET", endpoint, "")
-	if err != nil {
-		log.Printf("resource_level27_domain.go: No domainextensions found: %s", d.Id())
-		d.SetId("")
-		return nil, err
+func (r resourceDomain) Delete(ctx context.Context, req tfsdk.DeleteResourceRequest, resp *tfsdk.DeleteResourceResponse) {
+	var state resourceDomainModel
+	diags := req.State.Get(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
 	}
 
-	err = json.Unmarshal(body, &domainProviders)
+	appID, ok := parseID(state.ID.Value, &resp.Diagnostics)
+	if !ok {
+		return
+	}
+
+	err := r.p.Client.DomainDelete(appID)
 	if err != nil {
-		log.Printf("unmarshall gone wrong")
-		log.Printf(string(body))
+		resp.Diagnostics.AddError("Error destroying domain", "API request failed:\n"+err.Error())
+		return
+	}
+
+	resp.State.RemoveResource(ctx)
+}
+
+func (r resourceDomain) Read(ctx context.Context, req tfsdk.ReadResourceRequest, resp *tfsdk.ReadResourceResponse) {
+	var state resourceDomainModel
+	diags := req.State.Get(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	domainID, _ := strconv.Atoi(state.ID.Value)
+
+	domain, err := r.p.Client.Domain(domainID)
+	if err != nil {
+		resp.Diagnostics.AddError("Error reading domain", "API request failed:\n"+err.Error())
+		return
+	}
+
+	result := domainModelFrom(domain)
+
+	diags = resp.State.Set(ctx, &result)
+	resp.Diagnostics.Append(diags...)
+}
+
+func (r resourceDomain) Update(ctx context.Context, req tfsdk.UpdateResourceRequest, resp *tfsdk.UpdateResourceResponse) {
+	// Get plan values
+	var plan resourceDomainModel
+	diags := req.Plan.Get(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Get current state
+	var state resourceDomainModel
+	diags = req.State.Get(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	domainID, _ := strconv.Atoi(state.ID.Value)
+
+	var request l27.DomainRequest
+	domainRequestFrom(r, tfDStringId(state.Organisation), plan, &resp.Diagnostics, &request)
+
+	err := r.p.Client.DomainUpdatePut(domainID, request)
+	if err != nil {
+		resp.Diagnostics.AddError("Error updating domain", "API request failed:\n"+err.Error())
+		return
+	}
+
+	// NOTE: we set state = plan her. This relies on UseStateForUnknown() so that plan already contains merged state.
+	diags = resp.State.Set(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
+}
+
+func (resourceDomain) ImportState(ctx context.Context, req tfsdk.ImportResourceStateRequest, resp *tfsdk.ImportResourceStateResponse) {
+	tfsdk.ResourceImportStatePassthroughID(ctx, tftypes.NewAttributePath().WithAttributeName("id"), req, resp)
+}
+
+func getDomainExtensions(p *provider) (map[string]int, error) {
+	providers, err := p.Client.Extension()
+	if err != nil {
 		return nil, err
 	}
 
 	m := make(map[string]int)
-	for _, provider := range domainProviders.Providers {
+	for _, provider := range providers {
 		for _, domainType := range provider.Domaintypes {
 			m[domainType.Extension] = domainType.ID
 		}
@@ -203,8 +254,87 @@ func getDomainExtensions(d *schema.ResourceData, meta interface{}) (map[string]i
 	return m, nil
 }
 
-func checkDomainAvailability(name string, extension string) (bool, string) {
-	log.Printf("resource_level27_domain.go: Starting checkAvailability")
-	return true, "1"
+func domainModelFrom(domain l27.Domain) resourceDomainModel {
+	result := resourceDomainModel{
+		ID:              tfStringId(domain.ID),
+		Name:            tfString(domain.Name),
+		FullName:        tfString(domain.Fullname),
+		Extension:       tfString(domain.Domaintype.Extension),
+		ContactLicensee: tfStringId(domain.DomaincontactLicensee.ID),
+		HandleDns:       types.Bool{Value: domain.DNSIsHandled},
+		NameServer1:     tfStringP(domain.Nameserver1),
+		NameServer2:     tfStringP(domain.Nameserver2),
+		NameServer3:     tfStringP(domain.Nameserver3),
+		NameServer4:     tfStringP(domain.Nameserver4),
+		NameServer1Ip:   tfStringP(domain.NameserverIP1),
+		NameServer2Ip:   tfStringP(domain.NameserverIP2),
+		NameServer3Ip:   tfStringP(domain.NameserverIP3),
+		NameServer4Ip:   tfStringP(domain.NameserverIP4),
+		NameServer1Ipv6: tfStringP(domain.NameserverIpv61),
+		NameServer2Ipv6: tfStringP(domain.NameserverIpv62),
+		NameServer3Ipv6: tfStringP(domain.NameserverIpv63),
+		NameServer4Ipv6: tfStringP(domain.NameserverIpv64),
+		Ttl:             types.Int64{Value: int64(domain.TTL)},
+		ContactOnsite:   types.String{Null: true},
+		Organisation:    tfStringId(domain.Organisation.ID),
+	}
+
+	if domain.DomaincontactOnsite != nil {
+		result.ContactOnsite = tfStringId(domain.DomaincontactOnsite.ID)
+	}
+
+	result.Teams = types.List{ElemType: types.StringType}
+
+	for _, v := range domain.Teams {
+		result.Teams.Elems = append(result.Teams.Elems, tfStringId(v.ID))
+	}
+
+	return result
 }
-*/
+
+func domainRequestFrom(r resourceDomain, orgID int, plan resourceDomainModel, diags *diag.Diagnostics, request *l27.DomainRequest) {
+	contactLicenseeID, _ := strconv.Atoi(plan.ContactLicensee.Value)
+	var contactOnsiteID *int
+	if !plan.ContactOnsite.Null && !plan.ContactOnsite.Unknown {
+		id, _ := strconv.Atoi(plan.ContactOnsite.Value)
+		contactOnsiteID = &id
+	}
+
+	extensions, err := getDomainExtensions(r.p)
+	if err != nil {
+		diags.AddError("Error resolving domain type", "API request failed:\n"+err.Error())
+		return
+	}
+
+	domainType, ok := extensions[plan.Extension.Value]
+	if !ok {
+		diags.AddError(
+			"Invalid domain extension",
+			fmt.Sprintf("Unknown domain extension: '%s'", plan.Extension.Value))
+	}
+
+	*request = l27.DomainRequest{
+		Organisation:          orgID,
+		Name:                  plan.Name.Value,
+		NameServer1:           tfDStringP(plan.NameServer1),
+		NameServer2:           tfDStringP(plan.NameServer2),
+		NameServer3:           tfDStringP(plan.NameServer3),
+		NameServer4:           tfDStringP(plan.NameServer4),
+		NameServer1Ip:         tfDStringP(plan.NameServer1Ip),
+		NameServer2Ip:         tfDStringP(plan.NameServer2Ip),
+		NameServer3Ip:         tfDStringP(plan.NameServer3Ip),
+		NameServer4Ip:         tfDStringP(plan.NameServer4Ip),
+		NameServer1Ipv6:       tfDStringP(plan.NameServer1Ipv6),
+		NameServer2Ipv6:       tfDStringP(plan.NameServer2Ipv6),
+		NameServer3Ipv6:       tfDStringP(plan.NameServer3Ipv6),
+		NameServer4Ipv6:       tfDStringP(plan.NameServer4Ipv6),
+		Handledns:             plan.HandleDns.Value,
+		Domaincontactlicensee: contactLicenseeID,
+		DomainContactOnSite:   contactOnsiteID,
+		TTL:                   int(plan.Ttl.Value),
+		Domaintype:            domainType,
+		AutoTeams:             formatTeams(plan.Teams),
+	}
+
+	request.Action = "create"
+}

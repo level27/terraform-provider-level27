@@ -3,6 +3,7 @@ package level27
 import (
 	"context"
 	"strconv"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -64,3 +65,29 @@ func (twoIdValidator) Validate(ctx context.Context, req tfsdk.ValidateAttributeR
 	}
 }
 
+func validateEmail() tfsdk.AttributeValidator {
+	return emailValidator{}
+}
+
+type emailValidator struct{}
+
+func (emailValidator) Description(context.Context) string {
+	return "Ensures the value is a valid email address"
+}
+
+func (v emailValidator) MarkdownDescription(ctx context.Context) string {
+	return v.Description(ctx)
+}
+
+func (v emailValidator) Validate(ctx context.Context, req tfsdk.ValidateAttributeRequest, resp *tfsdk.ValidateAttributeResponse) {
+	if req.AttributeConfig.IsNull() || req.AttributeConfig.IsUnknown() {
+		return
+	}
+
+	str := req.AttributeConfig.(types.String).Value
+	ok := strings.Contains(str, "@")
+
+	if !ok {
+		resp.Diagnostics.AddAttributeError(req.AttributePath, "Invalid email address", "Value must be a valid email address containing an @ symbol")
+	}
+}

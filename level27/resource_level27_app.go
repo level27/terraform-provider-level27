@@ -63,23 +63,9 @@ func (r resourceApp) Create(ctx context.Context, req tfsdk.CreateResourceRequest
 		return
 	}
 
-	var orgID int
-
-	if plan.Organisation.Null || plan.Organisation.Value == "" {
-		// Organisation defaults to the org of your login
-		login, err := r.p.GetLoginInfo()
-		if err != nil {
-			resp.Diagnostics.AddError("Error fetching login info", "API request failed:\n"+err.Error())
-			return
-		}
-
-		orgID = login.User.Organisation.ID
-	} else {
-		var ok bool
-		orgID, ok = parseID(plan.Organisation.Value, &resp.Diagnostics)
-		if !ok {
-			return
-		}
+	orgID := organisationOrDefault(r.p, plan.Organisation, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
+		return
 	}
 
 	request := l27.AppPostRequest{

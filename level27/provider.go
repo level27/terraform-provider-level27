@@ -16,55 +16,6 @@ import (
 // Provider defines the TF provider for Level27
 func Provider() tfsdk.Provider {
 	return &provider{}
-	/* 	return &schema.Provider{
-		Schema: map[string]*schema.Schema{
-			"uri": {
-				Type:        schema.TypeString,
-				Required:    true,
-				DefaultFunc: schema.EnvDefaultFunc("LEVEL27_API_URI", nil),
-				Description: "URI of the REST API endpoint. This serves as the base of all requests.",
-			},
-			"key": {
-				Type:        schema.TypeString,
-				Optional:    true,
-				DefaultFunc: schema.EnvDefaultFunc("LEVEL27_API_KEY", nil),
-				Description: "Key used to connect to the API.",
-			},
-		},
-		DataSourcesMap: map[string]*schema.Resource{
-			"level27_network":                       dataSourceLevel27Network(),
-			"level27_system_provider":               dataSourceLevel27SystemProvider(),
-			"level27_system_provider_configuration": dataSourceLevel27SystemProviderConfiguration(),
-			"level27_system_image":                  dataSourceLevel27SystemImage(),
-			"level27_system_zone":                   dataSourceLevel27SystemZone(),
-			//"level27_app":                           dataSourceLevel27App(),
-		},
-		ResourcesMap: map[string]*schema.Resource{
-			"level27_organisation":       resourceLevel27Organisation(),
-			"level27_system":             resourceLevel27System(),
-			"level27_cookbook_php":       resourceLevel27CookbookPhp(),
-			"level27_cookbook_mysql":     resourceLevel27CookbookMysql(),
-			"level27_cookbook_docker":    resourceLevel27CookbookDocker(),
-			"level27_cookbook_haproxy":   resourceLevel27CookbookHaproxy(),
-			"level27_cookbook_memcached": resourceLevel27CookbookMemcached(),
-			"level27_cookbook_mongodb":   resourceLevel27CookbookMongodb(),
-			"level27_cookbook_postfix":   resourceLevel27CookbookPostfix(),
-			"level27_cookbook_url":       resourceLevel27CookbookURL(),
-			"level27_cookbook_varnish":   resourceLevel27CookbookVarnish(),
-			//"level27_domain":         resourceLevel27Domain(),
-			//"level27_domain_contact": resourceLevel27DomainContact(),
-			//"level27_domain_record":  resourceLevel27DomainRecord(),
-			//"level27_user":               resourceLevel27User(),
-			//"level27_mailgroup":          resourceLevel27Mailgroup(),
-			//"level27_mailforwarder":      resourceLevel27Mailforwarder(),
-			//"level27_mailbox":            resourceLevel27Mailbox(),
-			//"level27_app":                resourceLevel27App(),
-			//"level27_appcomponent_php":   resourceLevel27AppComponentPhp(),
-			//"level27_appcomponent_mysql": resourceLevel27AppComponentMysql(),
-
-		},
-		ConfigureContextFunc: configureProvider,
-	} */
 }
 
 type provider struct {
@@ -142,8 +93,10 @@ func (p *provider) Configure(ctx context.Context, req tfsdk.ConfigureProviderReq
 
 func (p *provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceType, diag.Diagnostics) {
 	return map[string]tfsdk.ResourceType{
-		"level27_app":          resourceAppType{},
-		"level27_organisation": resourceOrganisationType{},
+		"level27_app":            resourceAppType{},
+		"level27_organisation":   resourceOrganisationType{},
+		"level27_domain":         resourceDomainType{},
+		"level27_domain_contact": resourceDomainContactType{},
 	}, nil
 }
 
@@ -186,9 +139,9 @@ func (t tfTracer) TraceRequest(method string, url string, reqData []byte) {
 }
 
 func (t tfTracer) TraceResponse(response *http.Response) {
-
+	tflog.Debug(t.Context, "Request Response", map[string]interface{}{"status": response.StatusCode})
 }
 
 func (t tfTracer) TraceResponseBody(response *http.Response, respData []byte) {
-
+	tflog.Debug(t.Context, "Request Response", map[string]interface{}{"body": string(respData)})
 }

@@ -1,221 +1,257 @@
 package level27
 
-/*
 import (
-	"encoding/json"
-	"fmt"
-	"log"
+	"context"
 	"strconv"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-go/tftypes"
+	"github.com/level27/l27-go"
 )
 
-func resourceLevel27DomainContact() *schema.Resource {
+type resourceDomainContactType struct{}
 
-	return &schema.Resource{
-		Create: resourceLevel27DomainContactCreate,
-		Read:   resourceLevel27DomainContactRead,
-		Delete: resourceLevel27DomainContactDelete,
-		Update: resourceLevel27DomainContactUpdate,
-		Importer: &schema.ResourceImporter{
-			State: schema.ImportStatePassthrough,
-		},
-		Schema: map[string]*schema.Schema{
+func (r resourceDomainContactType) GetSchema(context.Context) (tfsdk.Schema, diag.Diagnostics) {
+	return tfsdk.Schema{
+		Attributes: map[string]tfsdk.Attribute{
+			"id": {
+				Computed:      true,
+				Type:          types.StringType,
+				PlanModifiers: tfsdk.AttributePlanModifiers{tfsdk.UseStateForUnknown()},
+				Validators:    []tfsdk.AttributeValidator{validateID()},
+			},
 			"type": {
-				Type:        schema.TypeString,
-				Required:    true,
-				Description: "",
-				ForceNew:    false,
+				Required:      true,
+				Type:          types.StringType,
+				PlanModifiers: tfsdk.AttributePlanModifiers{tfsdk.RequiresReplace()},
 			},
 			"first_name": {
-				Type:        schema.TypeString,
-				Required:    true,
-				Description: "",
-				ForceNew:    true,
+				Required:      true,
+				Type:          types.StringType,
+				PlanModifiers: tfsdk.AttributePlanModifiers{tfsdk.RequiresReplace()},
 			},
 			"last_name": {
-				Type:        schema.TypeString,
-				Required:    true,
-				Description: "",
-				ForceNew:    true,
+				Required:      true,
+				Type:          types.StringType,
+				PlanModifiers: tfsdk.AttributePlanModifiers{tfsdk.RequiresReplace()},
 			},
 			"organisation_name": {
-				Type:        schema.TypeString,
-				Required:    true,
-				Description: "",
-				ForceNew:    false,
-			},
-			"phone": {
-				Type:        schema.TypeString,
-				Required:    true,
-				Description: "",
-				ForceNew:    false,
-			},
-			"email": {
-				Type:        schema.TypeString,
-				Required:    true,
-				Description: "",
-				ForceNew:    false,
-			},
-			"tax_number": {
-				Type:        schema.TypeString,
-				Required:    true,
-				Description: "",
-				ForceNew:    false,
+				Required:      true,
+				Type:          types.StringType,
+				PlanModifiers: tfsdk.AttributePlanModifiers{tfsdk.RequiresReplace()},
 			},
 			"street": {
-				Type:        schema.TypeString,
-				Required:    true,
-				Description: "",
-				ForceNew:    false,
+				Required: true,
+				Type:     types.StringType,
+			},
+			"house_number": {
+				Required: true,
+				Type:     types.StringType,
 			},
 			"zip": {
-				Type:        schema.TypeString,
-				Required:    true,
-				Description: "",
-				ForceNew:    false,
+				Required: true,
+				Type:     types.StringType,
 			},
 			"city": {
-				Type:        schema.TypeString,
-				Required:    true,
-				Description: "",
-				ForceNew:    false,
+				Required: true,
+				Type:     types.StringType,
+			},
+			"state": {
+				Optional: true,
+				Type:     types.StringType,
+			},
+			"phone": {
+				Required: true,
+				Type:     types.StringType,
+			},
+			"fax": {
+				Optional: true,
+				Type:     types.StringType,
+			},
+			"email": {
+				Required:   true,
+				Type:       types.StringType,
+				Validators: []tfsdk.AttributeValidator{validateEmail()},
+			},
+			"tax_number": {
+				Required: true,
+				Type:     types.StringType,
 			},
 			"country": {
-				Type:        schema.TypeString,
-				Required:    true,
-				Description: "",
-				ForceNew:    false,
-			},
-			"organisation_id": {
-				Type:        schema.TypeString,
-				Required:    true,
-				Description: "",
-				ForceNew:    false,
+				Required: true,
+				Type:     types.StringType,
 			},
 		},
+	}, nil
+}
+
+func (r resourceDomainContactType) NewResource(_ context.Context, p tfsdk.Provider) (tfsdk.Resource, diag.Diagnostics) {
+	return resourceDomainContact{
+		p: p.(*provider),
+	}, nil
+}
+
+type resourceDomainContact struct {
+	p *provider
+}
+
+type resourceDomainContactModel struct {
+	ID               types.String `tfsdk:"id"`
+	Type             types.String `tfsdk:"type"`
+	FirstName        types.String `tfsdk:"first_name"`
+	LastName         types.String `tfsdk:"last_name"`
+	OrganisationName types.String `tfsdk:"organisation_name"`
+	Street           types.String `tfsdk:"street"`
+	HouseNumber      types.String `tfsdk:"house_number"`
+	Zip              types.String `tfsdk:"zip"`
+	City             types.String `tfsdk:"city"`
+	State            types.String `tfsdk:"state"`
+	Phone            types.String `tfsdk:"phone"`
+	Fax              types.String `tfsdk:"fax"`
+	Email            types.String `tfsdk:"email"`
+	TaxNumber        types.String `tfsdk:"tax_number"`
+	Country          types.String `tfsdk:"country"`
+}
+
+// Create implements tfsdk.Resource
+func (r resourceDomainContact) Create(ctx context.Context, req tfsdk.CreateResourceRequest, resp *tfsdk.CreateResourceResponse) {
+	// Retrieve values from plan
+	var plan resourceDomainContactModel
+	diags := req.Plan.Get(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	request := domainContactRequestFrom(plan)
+
+	contact, err := r.p.Client.DomainContactCreate(request)
+	if err != nil {
+		resp.Diagnostics.AddError("Error creating domain contact", "API request failed:\n"+err.Error())
+		return
+	}
+
+	result := domainContactModelFrom(contact)
+
+	diags = resp.State.Set(ctx, result)
+	resp.Diagnostics.Append(diags...)
+}
+
+// Delete implements tfsdk.Resource
+func (r resourceDomainContact) Delete(ctx context.Context, req tfsdk.DeleteResourceRequest, resp *tfsdk.DeleteResourceResponse) {
+	var state resourceDomainContactModel
+	diags := req.State.Get(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	orgID, _ := strconv.Atoi(state.ID.Value)
+
+	err := r.p.Client.DomainContactDelete(orgID)
+	if err != nil {
+		resp.Diagnostics.AddError("Error destroying domain contact", "API request failed:\n"+err.Error())
+		return
+	}
+
+	resp.State.RemoveResource(ctx)
+}
+
+// Read implements tfsdk.Resource
+func (r resourceDomainContact) Read(ctx context.Context, req tfsdk.ReadResourceRequest, resp *tfsdk.ReadResourceResponse) {
+	var state resourceDomainContactModel
+	diags := req.State.Get(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	domainContactID, _ := strconv.Atoi(state.ID.Value)
+
+	contact, err := r.p.Client.DomainContactGetSingle(domainContactID)
+	if err != nil {
+		resp.Diagnostics.AddError("Error reading domain contact", "API request failed:\n"+err.Error())
+		return
+	}
+
+	result := domainContactModelFrom(contact)
+
+	diags = resp.State.Set(ctx, &result)
+	resp.Diagnostics.Append(diags...)
+}
+
+// Update implements tfsdk.Resource
+func (r resourceDomainContact) Update(ctx context.Context, req tfsdk.UpdateResourceRequest, resp *tfsdk.UpdateResourceResponse) {
+	// Retrieve values from plan
+	var plan resourceDomainContactModel
+	diags := req.Plan.Get(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var state resourceDomainContactModel
+	diags = req.State.Get(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	request := domainContactRequestFrom(plan)
+
+	err := r.p.Client.DomainContactUpdate(tfDStringId(state.ID), request)
+
+	if err != nil {
+		resp.Diagnostics.AddError("Error updating domain contact", "API request failed:\n"+err.Error())
+		return
 	}
 }
 
-func resourceLevel27DomainContactCreate(d *schema.ResourceData, meta interface{}) error {
-	log.Printf("resource_level27_domain_contact.go: Starting Create")
-
-	request := DomainContactRequest{
-		Type:             d.Get("type").(string),
-		FirstName:        d.Get("first_name").(string),
-		LastName:         d.Get("last_name").(string),
-		Organisation:     d.Get("organisation_id").(string),
-		Street:           d.Get("street").(string),
-		Zip:              d.Get("zip").(string),
-		City:             d.Get("city").(string),
-		Country:          d.Get("country").(string),
-		TaxNumber:        d.Get("tax_number").(string),
-		Email:            d.Get("email").(string),
-		Phone:            d.Get("phone").(string),
-		OrganisationName: d.Get("organisation_name").(string),
-	}
-
-	apiClient := meta.(*Client)
-	endpoint := "domaincontacts"
-	body, err := apiClient.sendRequest("POST", endpoint, request)
-
-	if err != nil {
-		log.Printf("resource_level27_domain_contact.go: No Domain record created: %s", err)
-		d.SetId("")
-		return err
-	}
-
-	var domainContact DomainContact
-	err = json.Unmarshal(body, &domainContact)
-	if err != nil {
-		return err
-	}
-
-	d.SetId(strconv.Itoa(domainContact.Domaincontact.ID))
-
-	return resourceLevel27DomainContactRead(d, meta)
+func (r resourceDomainContact) ImportState(ctx context.Context, req tfsdk.ImportResourceStateRequest, resp *tfsdk.ImportResourceStateResponse) {
+	tfsdk.ResourceImportStatePassthroughID(ctx, tftypes.NewAttributePath().WithAttributeName("id"), req, resp)
 }
 
-func resourceLevel27DomainContactRead(d *schema.ResourceData, meta interface{}) error {
-	log.Printf("resource_level27_domain_contact.go: Starting Read")
-
-	var domainContact DomainContact
-	apiClient := meta.(*Client)
-	endpoint := fmt.Sprintf("domaincontacts/%s", d.Id())
-	body, err := apiClient.sendRequest("GET", endpoint, nil)
-
-	if err != nil {
-		log.Printf("resource_level27_domain_contact.go: No Domain contact found: %s", d.Id())
-		d.SetId("")
-		return err
+func domainContactModelFrom(contact l27.DomainContact) resourceDomainContactModel {
+	result := resourceDomainContactModel{
+		ID:               tfStringId(contact.ID),
+		Type:             tfString(contact.Type),
+		FirstName:        tfString(contact.FirstName),
+		LastName:         tfString(contact.LastName),
+		OrganisationName: tfString(contact.OrganisationName),
+		Street:           tfString(contact.Street),
+		HouseNumber:      tfString(contact.HouseNumber),
+		Zip:              tfString(contact.Zip),
+		City:             tfString(contact.City),
+		State:            tfStringP(contact.State),
+		Phone:            tfString(contact.Phone),
+		Email:            tfString(contact.Email),
+		TaxNumber:        tfString(contact.TaxNumber),
+		Country:          tfString(contact.Country.ID),
+		Fax:              tfStringP(contact.Fax),
 	}
 
-	err = json.Unmarshal(body, &domainContact)
-	if err != nil {
-		return err
-	}
-
-	log.Printf("resource_level27_domain_contact.go:  Domain contact found: %d", domainContact.Domaincontact.ID)
-
-	d.SetId(strconv.Itoa(domainContact.Domaincontact.ID))
-	d.Set("type", domainContact.Domaincontact.Type)
-	d.Set("first_name", domainContact.Domaincontact.FirstName)
-	d.Set("last_name", domainContact.Domaincontact.LastName)
-	d.Set("organisation_name", domainContact.Domaincontact.OrganisationName)
-	d.Set("street", domainContact.Domaincontact.Street)
-	d.Set("zip", domainContact.Domaincontact.Zip)
-	d.Set("city", domainContact.Domaincontact.City)
-	d.Set("country", domainContact.Domaincontact.Country.ID)
-	d.Set("phone", domainContact.Domaincontact.Phone)
-	d.Set("email", domainContact.Domaincontact.Email)
-	d.Set("tax_number", domainContact.Domaincontact.TaxNumber)
-	orgid := strconv.Itoa(domainContact.Domaincontact.Organisation.ID)
-	if orgid == "null" {
-		orgid = "0"
-	}
-	d.Set("organisation_id", strconv.Itoa(domainContact.Domaincontact.Organisation.ID))
-
-	return nil
+	return result
 }
 
-func resourceLevel27DomainContactUpdate(d *schema.ResourceData, meta interface{}) error {
-	log.Printf("resource_level27_domain_contact.go: Starting Update")
-
-	request := DomainContactRequest{
-		Type:             d.Get("type").(string),
-		FirstName:        d.Get("first_name").(string),
-		LastName:         d.Get("last_name").(string),
-		Organisation:     d.Get("organisation_id").(string),
-		Street:           d.Get("street").(string),
-		Zip:              d.Get("zip").(string),
-		City:             d.Get("city").(string),
-		Country:          d.Get("country").(string),
-		TaxNumber:        d.Get("tax_number").(string),
-		Email:            d.Get("email").(string),
-		Phone:            d.Get("phone").(string),
-		OrganisationName: d.Get("organisation_name").(string),
+func domainContactRequestFrom(plan resourceDomainContactModel) l27.DomainContactRequest {
+	request := l27.DomainContactRequest{
+		Type:             plan.Type.Value,
+		FirstName:        plan.FirstName.Value,
+		LastName:         plan.LastName.Value,
+		OrganisationName: plan.OrganisationName.Value,
+		Street:           plan.Street.Value,
+		HouseNumber:      plan.HouseNumber.Value,
+		Zip:              plan.Zip.Value,
+		City:             plan.City.Value,
+		State:            tfDStringP(plan.State),
+		Phone:            plan.Phone.Value,
+		Fax:              tfDStringP(plan.Fax),
+		Email:            plan.Email.Value,
+		TaxNumber:        plan.TaxNumber.Value,
+		Country:          plan.Country.Value,
 	}
 
-	apiClient := meta.(*Client)
-	endpoint := fmt.Sprintf("domaincontacts/%s", d.Id())
-	body, err := apiClient.sendRequest("PUT", endpoint, request)
-
-	if err != nil {
-		log.Printf("resource_level27_domain_contact.go: No Domain contact created: %s", err)
-		d.SetId("")
-		return err
-	}
-
-	var domainContact DomainContact
-	err = json.Unmarshal(body, &domainContact)
-	if err != nil {
-		return err
-	}
-
-	d.SetId(strconv.Itoa(domainContact.Domaincontact.ID))
-
-	return resourceLevel27DomainContactRead(d, meta)
+	return request
 }
-
-func resourceLevel27DomainContactDelete(d *schema.ResourceData, meta interface{}) error { return nil }
-*/
