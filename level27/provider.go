@@ -102,7 +102,9 @@ func (p *provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceTyp
 
 func (p *provider) GetDataSources(_ context.Context) (map[string]tfsdk.DataSourceType, diag.Diagnostics) {
 	return map[string]tfsdk.DataSourceType{
-		"level27_user": dataSourceUserType{},
+		"level27_user":         dataSourceUserType{},
+		"level27_app":          dataSourceResourceType{ResourceType: resourceAppType{}},
+		"level27_organisation": dataSourceResourceType{ResourceType: resourceOrganisationType{}},
 	}, nil
 }
 
