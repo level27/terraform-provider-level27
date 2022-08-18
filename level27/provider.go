@@ -105,6 +105,7 @@ func (p *provider) GetDataSources(_ context.Context) (map[string]tfsdk.DataSourc
 		"level27_user":         dataSourceUserType{},
 		"level27_app":          dataSourceResourceType{ResourceType: resourceAppType{}},
 		"level27_organisation": dataSourceResourceType{ResourceType: resourceOrganisationType{}},
+		"level27_system_image": dataSourceSystemImageType{},
 	}, nil
 }
 

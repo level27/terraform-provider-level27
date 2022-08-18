@@ -1,72 +1,109 @@
 package level27
 
-/* import (
+import (
 	"context"
 	"fmt"
-	"log"
 	"strconv"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/level27/l27-go"
 )
 
-func dataSourceLevel27SystemImage() *schema.Resource {
-	return &schema.Resource{
-		ReadContext: dataSourceLevel27SystemImageRead,
+type dataSourceSystemImageType struct{}
 
-		Schema: map[string]*schema.Schema{
+// GetSchema implements tfsdk.DataSourceType
+func (dataSourceSystemImageType) GetSchema(context.Context) (tfsdk.Schema, diag.Diagnostics) {
+	return tfsdk.Schema{
+		Attributes: map[string]tfsdk.Attribute{
+			"id": {
+				Type:        types.StringType,
+				Computed:    true,
+				Description: "The ID of the located system image",
+			},
 			"name": {
-				Type:         schema.TypeString,
-				Optional:     true,
-				ValidateFunc: validation.StringInSlice([]string{"ubuntu_1604lts_server", "ubuntu_1804lts_server", "ubuntu_2004lts_server"}, true),
-				Description: `The name of the system image.
-Possible values:
-  - Level27
-	- ubuntu_1604lts_server
-	- ubuntu_1804lts_server
-	- ubuntu_2004lts_server`,
+				Type:        types.StringType,
+				Required:    true,
+				Description: "The name of the system image to use. For example ubuntu_2004lts_server",
 			},
 			"provider_id": {
-				Type:        schema.TypeString,
+				Type:        types.StringType,
 				Required:    true,
-				Description: `The ID for the system provider.`,
+				Description: "The ID of the system provider",
+				Validators:  []tfsdk.AttributeValidator{validateID()},
 			},
 		},
-	}
+	}, nil
 }
 
-func dataSourceLevel27SystemImageRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
-	var diags diag.Diagnostics
-	var systemProviders SystemProviders
-	apiClient := meta.(*Client)
-	systemImages := make([]int, 0)
+// NewDataSource implements tfsdk.DataSourceType
+func (dataSourceSystemImageType) NewDataSource(_ context.Context, p tfsdk.Provider) (tfsdk.DataSource, diag.Diagnostics) {
+	return dataSourceSystemImage{
+		p: p.(*provider),
+	}, nil
+}
 
-	systemProviders = apiClient.SystemProviders()
+type dataSourceSystemImage struct {
+	p *provider
+}
 
-	log.Printf("data_source_level27_system_image.go: Read routine called.")
+type dataSourceSystemImageModel struct {
+	ID       types.String `tfsdk:"id"`
+	Name     types.String `tfsdk:"name"`
+	Provider types.String `tfsdk:"provider_id"`
+}
 
-	for _, systemProvider := range systemProviders.Providers {
-		if strconv.Itoa(systemProvider.ID) == d.Get("provider_id").(string) {
-			for _, systemImage := range systemProvider.Images {
-				if systemImage.Name == d.Get("name").(string) {
-					systemImages = append(systemImages, systemImage.ID)
-				}
-			}
+// Read implements tfsdk.DataSource
+func (d dataSourceSystemImage) Read(ctx context.Context, req tfsdk.ReadDataSourceRequest, resp *tfsdk.ReadDataSourceResponse) {
+	var config dataSourceSystemImageModel
+	diags := req.Config.Get(ctx, &config)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	providerID, _ := strconv.Atoi(config.Provider.Value)
+	imageName := config.Name.Value
+
+	providers, err := d.p.Client.GetSystemProviders()
+	if err != nil {
+		resp.Diagnostics.AddError("Error reading providers", "API request failed:\n"+err.Error())
+		return
+	}
+
+	provider := findSystemProvider(providers, providerID)
+	if provider == nil {
+		resp.Diagnostics.AddError("Unable to find provider", fmt.Sprintf("No system provider with ID '%d' could be found!", providerID))
+		return
+	}
+
+	image := findSystemProviderImage(provider.Images, imageName)
+	if image == nil {
+		resp.Diagnostics.AddError("Unable to find image on provider", fmt.Sprintf("No image with name '%s' could be found on provider %s!", imageName, provider.Name))
+		return
+	}
+
+	config.ID = tfStringId(image.ID)
+
+	diags = resp.State.Set(ctx, &config)
+	resp.Diagnostics.Append(diags...)
+}
+
+func findSystemProvider(providers []l27.SystemProvider, id int) *l27.SystemProvider {
+	for _, provider := range providers {
+		if provider.ID == id {
+			return &provider
 		}
 	}
-
-	if len(systemImages) != 1 {
-		diags = append(diags, diag.Diagnostic{
-			Severity: diag.Error,
-			Summary:  "Error SystemImage",
-			Detail:   fmt.Sprintf("The query returned %d system images, we cannot continue", len(systemImages)),
-		})
-		return diags
-	}
-
-	d.SetId(strconv.Itoa(systemImages[0]))
-
 	return nil
 }
-*/
+
+func findSystemProviderImage(images []l27.SystemProviderImage, name string) *l27.SystemProviderImage {
+	for _, image := range images {
+		if image.Name == name {
+			return &image
+		}
+	}
+	return nil
+}
