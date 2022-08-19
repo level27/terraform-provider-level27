@@ -1,5 +1,116 @@
 package level27
 
+import (
+	"context"
+	"fmt"
+
+	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/level27/l27-go"
+)
+
+type dataSourceSystemZoneType struct{}
+
+// GetSchema implements tfsdk.DataSourceType
+func (dataSourceSystemZoneType) GetSchema(context.Context) (tfsdk.Schema, diag.Diagnostics) {
+	return tfsdk.Schema{
+		Attributes: map[string]tfsdk.Attribute{
+			"id": {
+				Type:     types.StringType,
+				Computed: true,
+			},
+			"region_name": {
+				Type:     types.StringType,
+				Required: true,
+			},
+			"zone_name": {
+				Type:     types.StringType,
+				Required: true,
+			},
+		},
+	}, nil
+}
+
+// NewDataSource implements tfsdk.DataSourceType
+func (dataSourceSystemZoneType) NewDataSource(ctx context.Context, p tfsdk.Provider) (tfsdk.DataSource, diag.Diagnostics) {
+	return dataSourceSystemZone{
+		p: p.(*provider),
+	}, nil
+}
+
+type dataSourceSystemZone struct {
+	p *provider
+}
+
+type dataSourceSystemZoneModel struct {
+	ID         types.String `tfsdk:"id"`
+	ZoneName   types.String `tfsdk:"zone_name"`
+	RegionName types.String `tfsdk:"region_name"`
+}
+
+// Read implements tfsdk.DataSource
+func (d dataSourceSystemZone) Read(ctx context.Context, req tfsdk.ReadDataSourceRequest, resp *tfsdk.ReadDataSourceResponse) {
+	var config dataSourceSystemZoneModel
+	diags := req.Config.Get(ctx, &config)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	regionName := config.RegionName.Value
+	zoneName := config.ZoneName.Value
+
+	regions, err := d.p.Client.GetRegions()
+	if err != nil {
+		resp.Diagnostics.AddError("Error reading regions", "API request failed:\n"+err.Error())
+		return
+	}
+
+	region := findRegionByName(regions, regionName)
+	if region == nil {
+		resp.Diagnostics.AddError("Unable to find region", fmt.Sprintf("No region with name '%s' could be found!", regionName))
+		return
+	}
+
+	zones, err := d.p.Client.GetZones(region.ID)
+	if err != nil {
+		resp.Diagnostics.AddError("Error reading zones", "API request failed:\n"+err.Error())
+		return
+	}
+
+	zone := findZoneByShortName(zones, zoneName)
+	if zone == nil {
+		resp.Diagnostics.AddError("Unable to find zone", fmt.Sprintf("No zone with name '%s' could be found in region %s!", zoneName, regionName))
+		return
+	}
+
+	config.ID = tfStringId(zone.ID)
+
+	diags = resp.State.Set(ctx, &config)
+	resp.Diagnostics.Append(diags...)
+}
+
+func findRegionByName(regions []l27.Region, name string) *l27.Region {
+	for _, region := range regions {
+		if region.Name == name {
+			return &region
+		}
+	}
+
+	return nil
+}
+
+func findZoneByShortName(zones []l27.Zone, name string) *l27.Zone {
+	for _, zone := range zones {
+		if zone.ShortName == name {
+			return &zone
+		}
+	}
+
+	return nil
+}
+
 /*
 import (
 	"context"
