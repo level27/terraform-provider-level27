@@ -97,15 +97,17 @@ func (p *provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceTyp
 		"level27_organisation":   resourceOrganisationType{},
 		"level27_domain":         resourceDomainType{},
 		"level27_domain_contact": resourceDomainContactType{},
+		"level27_system":         resourceSystemType{},
 	}, nil
 }
 
 func (p *provider) GetDataSources(_ context.Context) (map[string]tfsdk.DataSourceType, diag.Diagnostics) {
 	return map[string]tfsdk.DataSourceType{
-		"level27_user":         dataSourceUserType{},
-		"level27_app":          dataSourceResourceType{ResourceType: resourceAppType{}},
-		"level27_organisation": dataSourceResourceType{ResourceType: resourceOrganisationType{}},
-		"level27_system_image": dataSourceSystemImageType{},
+		"level27_user":            dataSourceUserType{},
+		"level27_app":             dataSourceResourceType{ResourceType: resourceAppType{}},
+		"level27_organisation":    dataSourceResourceType{ResourceType: resourceOrganisationType{}},
+		"level27_system_image":    dataSourceSystemImageType{},
+		"level27_system_provider": dataSourceSystemProviderType{},
 	}, nil
 }
 

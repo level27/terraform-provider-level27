@@ -72,13 +72,13 @@ func (d dataSourceSystemImage) Read(ctx context.Context, req tfsdk.ReadDataSourc
 		return
 	}
 
-	provider := findSystemProvider(providers, providerID)
+	provider := findSystemProviderByID(providers, providerID)
 	if provider == nil {
 		resp.Diagnostics.AddError("Unable to find provider", fmt.Sprintf("No system provider with ID '%d' could be found!", providerID))
 		return
 	}
 
-	image := findSystemProviderImage(provider.Images, imageName)
+	image := findSystemProviderImageByName(provider.Images, imageName)
 	if image == nil {
 		resp.Diagnostics.AddError("Unable to find image on provider", fmt.Sprintf("No image with name '%s' could be found on provider %s!", imageName, provider.Name))
 		return
@@ -90,7 +90,7 @@ func (d dataSourceSystemImage) Read(ctx context.Context, req tfsdk.ReadDataSourc
 	resp.Diagnostics.Append(diags...)
 }
 
-func findSystemProvider(providers []l27.SystemProvider, id int) *l27.SystemProvider {
+func findSystemProviderByID(providers []l27.SystemProvider, id int) *l27.SystemProvider {
 	for _, provider := range providers {
 		if provider.ID == id {
 			return &provider
@@ -99,7 +99,7 @@ func findSystemProvider(providers []l27.SystemProvider, id int) *l27.SystemProvi
 	return nil
 }
 
-func findSystemProviderImage(images []l27.SystemProviderImage, name string) *l27.SystemProviderImage {
+func findSystemProviderImageByName(images []l27.SystemProviderImage, name string) *l27.SystemProviderImage {
 	for _, image := range images {
 		if image.Name == name {
 			return &image

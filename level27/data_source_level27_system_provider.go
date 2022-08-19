@@ -1,63 +1,85 @@
 package level27
 
-/*
 import (
 	"context"
 	"fmt"
-	"log"
-	"strconv"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/level27/l27-go"
 )
 
-func dataSourceLevel27SystemProvider() *schema.Resource {
-	return &schema.Resource{
-		ReadContext: dataSourceLevel27SystemProviderRead,
+type dataSourceSystemProviderType struct{}
 
-		Schema: map[string]*schema.Schema{
+// GetSchema implements tfsdk.DataSourceType
+func (dataSourceSystemProviderType) GetSchema(context.Context) (tfsdk.Schema, diag.Diagnostics) {
+	return tfsdk.Schema{
+		Attributes: map[string]tfsdk.Attribute{
+			"id": {
+				Type:        types.StringType,
+				Computed:    true,
+				Description: "The ID of the located system image",
+			},
 			"name": {
-				Type:         schema.TypeString,
-				Required:     true,
-				ValidateFunc: validation.StringInSlice([]string{"Level27"}, true),
-				Description: `The name for the specified provider.
-Possible values:
-  - Level27`,
+				Type:        types.StringType,
+				Required:    true,
+				Description: "The name for the specified provider. You usually want 'Level27'",
 			},
 		},
-	}
+	}, nil
 }
 
-func dataSourceLevel27SystemProviderRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
-	var diags diag.Diagnostics
-	var systemProviders SystemProviders
-	apiClient := meta.(*Client)
-	systemProviderIds := make([]int, 0)
+// NewDataSource implements tfsdk.DataSourceType
+func (dataSourceSystemProviderType) NewDataSource(ctx context.Context, p tfsdk.Provider) (tfsdk.DataSource, diag.Diagnostics) {
+	return dataSourceSystemProvider{
+		p: p.(*provider),
+	}, nil
+}
 
-	systemProviders = apiClient.SystemProviders()
+type dataSourceSystemProvider struct {
+	p *provider
+}
 
-	log.Printf("data_source_level27_system_provider.go: Read routine called.")
+type dataSourceSystemProviderModel struct {
+	ID   types.String `tfsdk:"id"`
+	Name types.String `tfsdk:"name"`
+}
 
-	for _, systemProvider := range systemProviders.Providers {
-		if systemProvider.Name == d.Get("name").(string) {
-			systemProviderIds = append(systemProviderIds, systemProvider.ID)
+// Read implements tfsdk.DataSource
+func (d dataSourceSystemProvider) Read(ctx context.Context, req tfsdk.ReadDataSourceRequest, resp *tfsdk.ReadDataSourceResponse) {
+	var config dataSourceSystemProviderModel
+	diags := req.Config.Get(ctx, &config)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	providerName := config.Name.Value
+
+	providers, err := d.p.Client.GetSystemProviders()
+	if err != nil {
+		resp.Diagnostics.AddError("Error reading providers", "API request failed:\n"+err.Error())
+		return
+	}
+
+	provider := findSystemProviderByName(providers, providerName)
+	if provider == nil {
+		resp.Diagnostics.AddError("Unable to find provider", fmt.Sprintf("No system provider with name '%s' could be found!", providerName))
+		return
+	}
+
+	config.ID = tfStringId(provider.ID)
+
+	diags = resp.State.Set(ctx, &config)
+	resp.Diagnostics.Append(diags...)
+}
+
+func findSystemProviderByName(providers []l27.SystemProvider, name string) *l27.SystemProvider {
+	for _, provider := range providers {
+		if provider.Name == name {
+			return &provider
 		}
 	}
-
-	log.Printf("data_source_level27_system_provider.go: The query returned %d system providers; %v", len(systemProviderIds), systemProviderIds)
-
-	if len(systemProviderIds) != 1 {
-		diags = append(diags, diag.Diagnostic{
-			Severity: diag.Error,
-			Summary:  "Error SystemProvider",
-			Detail:   fmt.Sprintf("The query returned %d system providers, we cannot continue", len(systemProviderIds)),
-		})
-		return diags
-	}
-
-	d.SetId(strconv.Itoa(systemProviderIds[0]))
-
 	return nil
 }
-*/
