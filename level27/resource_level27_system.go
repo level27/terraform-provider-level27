@@ -1,5 +1,172 @@
 package level27
 
+import (
+	"context"
+
+	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/types"
+)
+
+type resourceSystemType struct {
+}
+
+// GetSchema implements tfsdk.ResourceType
+func (resourceSystemType) GetSchema(context.Context) (tfsdk.Schema, diag.Diagnostics) {
+	return tfsdk.Schema{
+		Attributes: map[string]tfsdk.Attribute{
+			"id": {
+				Type:          types.StringType,
+				Computed:      true,
+				PlanModifiers: tfsdk.AttributePlanModifiers{tfsdk.UseStateForUnknown()},
+				Validators:    []tfsdk.AttributeValidator{validateID()},
+			},
+			"name": {
+				Type:        types.StringType,
+				Required:    true,
+				Description: `The name of the system.`,
+			},
+			"hostname": {
+				Type:       types.StringType,
+				Optional:   true,
+				Validators: []tfsdk.AttributeValidator{validateRegex(`(\b(?:(?:[^.-/]{0,1})[\w-]{1,63}[-]{0,1}[.]{1})+(?:[a-zA-Z]{2,63})\b)`)},
+			},
+			"fqdn": {
+				Type:          types.StringType,
+				Computed:      true,
+				PlanModifiers: tfsdk.AttributePlanModifiers{tfsdk.UseStateForUnknown()},
+				Validators:    []tfsdk.AttributeValidator{validateID()},
+				Description:   `The FQDN of the system.`,
+			},
+			"organisation": {
+				Type:          types.StringType,
+				Optional:      true,
+				Computed:      true,
+				PlanModifiers: tfsdk.AttributePlanModifiers{tfsdk.UseStateForUnknown()},
+				Validators:    []tfsdk.AttributeValidator{validateID()},
+				Description:   `The ID of the organisation that owns the system.`,
+			},
+			"management_type": {
+				Type:          types.StringType,
+				Optional:      true,
+				Computed:      true,
+				PlanModifiers: tfsdk.AttributePlanModifiers{DefaultValue(tfString("basic"))},
+				Validators:    []tfsdk.AttributeValidator{validateStringInSlice([]string{"basic", "professional", "enterprise", "professional_level27"})},
+			},
+			"system_image": {
+				Type:          types.StringType,
+				Required:      true,
+				PlanModifiers: tfsdk.AttributePlanModifiers{tfsdk.RequiresReplace()},
+				Validators:    []tfsdk.AttributeValidator{validateID()},
+				Description:   `The ID of the system image to use for creation.`,
+			},
+			"system_provider_configuration": {
+				Type:          types.StringType,
+				Required:      true,
+				PlanModifiers: tfsdk.AttributePlanModifiers{tfsdk.RequiresReplace()},
+				Validators:    []tfsdk.AttributeValidator{validateID()},
+				Description:   `The ID of the system provider to use for creation.`,
+			},
+			"zone": {
+				Type:          types.StringType,
+				Required:      true,
+				PlanModifiers: tfsdk.AttributePlanModifiers{tfsdk.RequiresReplace()},
+				Validators:    []tfsdk.AttributeValidator{validateID()},
+				Description:   `The ID of the zone where to create the system.`,
+			},
+			"networks": {
+				Required: true,
+				Attributes: tfsdk.ListNestedAttributes(map[string]tfsdk.Attribute{
+					"id": {
+						Type:          types.StringType,
+						Computed:      true,
+						PlanModifiers: tfsdk.AttributePlanModifiers{tfsdk.UseStateForUnknown()},
+						Validators:    []tfsdk.AttributeValidator{validateID()},
+					},
+					"ip": {
+						Type:     types.StringType,
+						Computed: true,
+					},
+					"ipv6": {
+						Type:     types.StringType,
+						Computed: true,
+					},
+				}),
+			},
+			"cpu": {
+				Type:        types.Int64Type,
+				Required:    true,
+				Description: `The number of CPUs.`,
+			},
+			"memory": {
+				Type:        types.Int64Type,
+				Required:    true,
+				Description: `The amount of memory in GB.`,
+			},
+			"disk": {
+				Type:        types.Int64Type,
+				Required:    true,
+				Description: `The amount of diskspace in GB.`,
+			},
+			"public_ipv4": {
+				Type:     types.ListType{ElemType: types.StringType},
+				Computed: true,
+			},
+			"public_ipv6": {
+				Type:     types.ListType{ElemType: types.StringType},
+				Computed: true,
+			},
+			"internal_ipv4": {
+				Type:     types.ListType{ElemType: types.StringType},
+				Computed: true,
+			},
+			"internal_ipv6": {
+				Type:     types.ListType{ElemType: types.StringType},
+				Computed: true,
+			},
+			"customer_ipv4": {
+				Type:     types.ListType{ElemType: types.StringType},
+				Computed: true,
+			},
+			"customer_ipv6": {
+				Type:     types.ListType{ElemType: types.StringType},
+				Computed: true,
+			},
+		},
+	}, nil
+}
+
+// NewResource implements tfsdk.ResourceType
+func (r resourceSystemType) NewResource(_ context.Context, p tfsdk.Provider) (tfsdk.Resource, diag.Diagnostics) {
+	return resourceSystem{
+		p: p.(*provider),
+	}, nil
+}
+
+type resourceSystem struct {
+	p *provider
+}
+
+// Create implements tfsdk.Resource
+func (resourceSystem) Create(context.Context, tfsdk.CreateResourceRequest, *tfsdk.CreateResourceResponse) {
+	panic("unimplemented")
+}
+
+// Delete implements tfsdk.Resource
+func (resourceSystem) Delete(context.Context, tfsdk.DeleteResourceRequest, *tfsdk.DeleteResourceResponse) {
+	panic("unimplemented")
+}
+
+// Read implements tfsdk.Resource
+func (resourceSystem) Read(context.Context, tfsdk.ReadResourceRequest, *tfsdk.ReadResourceResponse) {
+	panic("unimplemented")
+}
+
+// Update implements tfsdk.Resource
+func (resourceSystem) Update(context.Context, tfsdk.UpdateResourceRequest, *tfsdk.UpdateResourceResponse) {
+	panic("unimplemented")
+}
+
 /*
 import (
 	"fmt"
