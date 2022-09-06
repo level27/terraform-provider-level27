@@ -2,6 +2,7 @@ package level27
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -33,7 +34,7 @@ func (idValidator) Validate(ctx context.Context, req tfsdk.ValidateAttributeRequ
 
 	_, err := strconv.Atoi(str.Value)
 	if err != nil {
-		resp.Diagnostics.AddAttributeError(req.AttributePath, "Invalid entity ID", "Value must be a valid integer ID")
+		resp.Diagnostics.AddAttributeError(req.AttributePath, "Invalid entity ID", fmt.Sprintf("Value must be a valid integer ID: '%s'", str))
 	}
 }
 
