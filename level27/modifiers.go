@@ -34,9 +34,3 @@ func (m DefaultValueModifier) Modify(ctx context.Context, req tfsdk.ModifyAttrib
 		resp.AttributePlan = m.DefaultValue
 	}
 }
-
-// UseStateForUnknown returns a UseStateForUnknownModifier.
-func UseStateForUnknown2() tfsdk.AttributePlanModifier {
-	return UseStateForUnknownModifier2{}
-}
-
