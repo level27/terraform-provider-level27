@@ -117,3 +117,13 @@ func formatTeams(teams types.List) string {
 
 	return autoTeams
 }
+
+func sliceContains[T comparable](slice []T, value T) bool {
+	for _, opt := range slice {
+		if opt == value {
+			return true
+		}
+	}
+
+	return false
+}

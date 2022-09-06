@@ -3,6 +3,7 @@ package level27
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -90,5 +91,67 @@ func (v emailValidator) Validate(ctx context.Context, req tfsdk.ValidateAttribut
 
 	if !ok {
 		resp.Diagnostics.AddAttributeError(req.AttributePath, "Invalid email address", "Value must be a valid email address containing an @ symbol")
+	}
+}
+
+func validateRegex(regex string) tfsdk.AttributeValidator {
+	return regexValidator{Regex: *regexp.MustCompile(regex)}
+}
+
+type regexValidator struct {
+	Regex regexp.Regexp
+}
+
+// TODO: Descriptions
+func (v regexValidator) Description(context.Context) string {
+	return "matches regex"
+}
+
+func (v regexValidator) MarkdownDescription(context.Context) string {
+	return "matches regex"
+}
+
+func (v regexValidator) Validate(c context.Context, req tfsdk.ValidateAttributeRequest, resp *tfsdk.ValidateAttributeResponse) {
+	if req.AttributeConfig.IsNull() || req.AttributeConfig.IsUnknown() {
+		return
+	}
+
+	str := req.AttributeConfig.(types.String).Value
+	ok := v.Regex.Match([]byte(str))
+
+	if !ok {
+		resp.Diagnostics.AddAttributeError(req.AttributePath, "Regex match fail", "todo error")
+	}
+}
+
+func validateStringInSlice(options []string) tfsdk.AttributeValidator {
+	return stringInSliceValidator{Options: options}
+}
+
+type stringInSliceValidator struct {
+	Options []string
+}
+
+func (v stringInSliceValidator) Description(context.Context) string {
+	return "Value must be one of: %s" + strings.Join(v.Options, ", ")
+}
+
+func (v stringInSliceValidator) MarkdownDescription(c context.Context) string {
+	return v.Description(c)
+}
+
+func (v stringInSliceValidator) Validate(c context.Context, req tfsdk.ValidateAttributeRequest, resp *tfsdk.ValidateAttributeResponse) {
+	if req.AttributeConfig.IsNull() || req.AttributeConfig.IsUnknown() {
+		return
+	}
+
+	str := req.AttributeConfig.(types.String).Value
+	if !sliceContains(v.Options, str) {
+		detail := fmt.Sprintf(
+			"Value '%s' is not a valid value for this attribute. Value values are: %s",
+			str,
+			strings.Join(v.Options, ", "))
+
+		resp.Diagnostics.AddError("Invalid attribute value", detail)
 	}
 }
