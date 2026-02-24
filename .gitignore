@@ -1,5 +1,25 @@
-terraform-provider-level27*
-template
-vendor
-.terraform
-.test
+# Provider binary
+terraform-provider-level27
+terraform-provider-level27.exe
+
+# Terraform working files
+**/.terraform/
+**/.terraform.lock.hcl
+**/terraform.tfstate
+**/terraform.tfstate.backup
+**/terraform.tfstate.*.backup
+**/.terraform.tfstate.lock.info
+
+# Variable files with real values — use terraform.tfvars.example instead
+**/terraform.tfvars
+**/terraform.tfvars.json
+**/*.auto.tfvars
+**/*.auto.tfvars.json
+
+# GoReleaser output
+dist/
+
+# IDE
+.idea/
+.vscode/
+*.swp
