@@ -1,0 +1,4 @@
+# Copy this file to terraform.tfvars and fill in your own values.
+# terraform.tfvars is gitignored and will NOT be committed.
+
+organisation_id = 123   # Your Level27 organisation ID
