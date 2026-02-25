@@ -2,6 +2,10 @@
 terraform-provider-level27
 terraform-provider-level27.exe
 
+# Helper tool binary
+l27lookup
+l27lookup.exe
+
 # Terraform working files
 **/.terraform/
 **/.terraform.lock.hcl
@@ -23,3 +27,6 @@ dist/
 .idea/
 .vscode/
 *.swp
+
+# Local dev environment files
+.env*

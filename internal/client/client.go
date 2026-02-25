@@ -22,6 +22,30 @@ import (
 
 const defaultBaseURL = "https://api.level27.eu/v1"
 
+// jsonInt is an integer that the Level27 API sometimes returns as a quoted
+// decimal string (e.g. "60.0" for disk size).  It unmarshals both forms.
+type jsonInt int
+
+func (j *jsonInt) UnmarshalJSON(data []byte) error {
+	// plain JSON number
+	var n int
+	if err := json.Unmarshal(data, &n); err == nil {
+		*j = jsonInt(n)
+		return nil
+	}
+	// quoted string like "60.0"
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return fmt.Errorf("jsonInt: expected number or string, got %s", data)
+	}
+	f, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return fmt.Errorf("jsonInt: cannot parse %q as number: %w", s, err)
+	}
+	*j = jsonInt(int(f))
+	return nil
+}
+
 // Client is the Level27 API client.
 type Client struct {
 	httpClient *http.Client
@@ -197,11 +221,59 @@ func (cp CookbookParameter) Versions() []string {
 	return nil
 }
 
-// System represents a Level27 system.
+// System represents a Level27 system (server).
 type System struct {
-	ID        int              `json:"id"`
-	Name      string           `json:"name"`
-	Cookbooks []SystemCookbook `json:"cookbooks"`
+	ID                          int              `json:"id"`
+	Name                        string           `json:"name"`
+	CustomerFqdn                string           `json:"customerFqdn"`
+	Type                        string           `json:"type"`
+	Status                      string           `json:"status"`
+	StatusCategory              string           `json:"statusCategory"`
+	CPU                         int              `json:"cpu"`
+	Disk                        jsonInt          `json:"disk"`
+	Memory                      int              `json:"memory"`
+	ManagementType              string           `json:"managementType"`
+	ExternalInfo                string           `json:"externalInfo"`
+	Organisation                *Ref             `json:"organisation"`
+	Zone                        *Ref             `json:"zone"`
+	Systemimage                 *Ref             `json:"systemimage"`
+	SystemproviderConfiguration *Ref             `json:"systemproviderConfiguration"`
+	Parentsystem                *Ref             `json:"parentsystem"`
+	Cookbooks                   []SystemCookbook `json:"cookbooks"`
+}
+
+// CreateSystemRequest is the body for POST /systems.
+type CreateSystemRequest struct {
+	Name                        string  `json:"name"`
+	CustomerFqdn                string  `json:"customerFqdn,omitempty"`
+	Type                        string  `json:"type"`
+	Organisation                int     `json:"organisation"`
+	Systemimage                 int     `json:"systemimage"`
+	SystemproviderConfiguration int     `json:"systemproviderConfiguration"`
+	Zone                        int     `json:"zone"`
+	CPU                         int     `json:"cpu"`
+	Disk                        int     `json:"disk"`
+	Memory                      int     `json:"memory"`
+	ManagementType              string  `json:"managementType,omitempty"`
+	Period                      int     `json:"period,omitempty"`
+	ExternalInfo                *string `json:"externalInfo"`
+	Parentsystem                *int    `json:"parentsystem"`
+}
+
+// UpdateSystemRequest is the body for PUT /systems/{id}.
+type UpdateSystemRequest struct {
+	Name                        string  `json:"name"`
+	CustomerFqdn                string  `json:"customerFqdn,omitempty"`
+	Type                        string  `json:"type"`
+	Organisation                int     `json:"organisation"`
+	Systemimage                 int     `json:"systemimage"`
+	SystemproviderConfiguration int     `json:"systemproviderConfiguration"`
+	Zone                        int     `json:"zone"`
+	CPU                         int     `json:"cpu"`
+	Disk                        int     `json:"disk"`
+	Memory                      int     `json:"memory"`
+	ManagementType              string  `json:"managementType,omitempty"`
+	ExternalInfo                *string `json:"externalInfo"`
 }
 
 // GetSystem calls GET /systems/{id}.
@@ -214,6 +286,66 @@ func (c *Client) GetSystem(ctx context.Context, id int) (*System, error) {
 		System System `json:"system"`
 	}
 	return &out.System, c.do(req, &out)
+}
+
+// CreateSystem calls POST /systems.
+func (c *Client) CreateSystem(ctx context.Context, body CreateSystemRequest) (*System, error) {
+	req, err := c.newRequest(ctx, http.MethodPost, "/systems", body)
+	if err != nil {
+		return nil, err
+	}
+	var out struct {
+		System System `json:"system"`
+	}
+	return &out.System, c.do(req, &out)
+}
+
+// UpdateSystem calls PUT /systems/{id}.
+func (c *Client) UpdateSystem(ctx context.Context, id int, body UpdateSystemRequest) error {
+	req, err := c.newRequest(ctx, http.MethodPut, fmt.Sprintf("/systems/%d", id), body)
+	if err != nil {
+		return err
+	}
+	return c.do(req, nil)
+}
+
+// DeleteSystem calls DELETE /systems/{id}.
+func (c *Client) DeleteSystem(ctx context.Context, id int) error {
+	req, err := c.newRequest(ctx, http.MethodDelete, fmt.Sprintf("/systems/%d", id), nil)
+	if err != nil {
+		return err
+	}
+	return c.do(req, nil)
+}
+
+// WaitForSystemStatus polls GET /systems/{id} until the status is no longer
+// transitional. Returns the final system or an error.
+func (c *Client) WaitForSystemStatus(ctx context.Context, id int) (*System, error) {
+	transitional := map[string]bool{
+		"to_create": true,
+		"creating":  true,
+		"to_update": true,
+		"updating":  true,
+		"to_delete": true,
+		"deleting":  true,
+	}
+	for {
+		sys, err := c.GetSystem(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		if !transitional[sys.Status] {
+			if sys.StatusCategory == "red" {
+				return nil, fmt.Errorf("system reached error status: %s", sys.Status)
+			}
+			return sys, nil
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(5 * time.Second):
+		}
+	}
 }
 
 // FindCookbookVersion looks up the highest available version for the given
@@ -260,6 +392,392 @@ func compareVersions(a, b string) int {
 		}
 	}
 	return 0
+}
+
+// ListSystems calls GET /systems.
+func (c *Client) ListSystems(ctx context.Context, p PaginationParams) ([]System, error) {
+	q := url.Values{}
+	p.apply(q)
+	req, err := c.newRequest(ctx, http.MethodGet, "/systems?"+q.Encode(), nil)
+	if err != nil {
+		return nil, err
+	}
+	var out struct {
+		Systems []System `json:"systems"`
+	}
+	return out.Systems, c.do(req, &out)
+}
+
+// ---------------------------------------------------------------------------
+// Organisation
+// ---------------------------------------------------------------------------
+
+// Organisation represents a Level27 organisation.
+type Organisation struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+}
+
+// ListOrganisations calls GET /organisations.
+func (c *Client) ListOrganisations(ctx context.Context, p PaginationParams) ([]Organisation, error) {
+	q := url.Values{}
+	p.apply(q)
+	req, err := c.newRequest(ctx, http.MethodGet, "/organisations?"+q.Encode(), nil)
+	if err != nil {
+		return nil, err
+	}
+	var out struct {
+		Organisations []Organisation `json:"organisations"`
+	}
+	return out.Organisations, c.do(req, &out)
+}
+
+// ---------------------------------------------------------------------------
+// SystemProvider / SystemImage / SystemProviderConfiguration / SystemZone
+// ---------------------------------------------------------------------------
+
+// SystemProvider represents a Level27 system provider (hypervisor backend).
+// Images are embedded directly in the API response.
+type SystemProvider struct {
+	ID     int           `json:"id"`
+	Name   string        `json:"name"`
+	Images []SystemImage `json:"images"`
+}
+
+// SystemImage represents a bootable OS image available on a provider.
+type SystemImage struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+}
+
+// SystemProviderConfiguration represents a hardware profile.
+type SystemProviderConfiguration struct {
+	ID             int    `json:"id"`
+	Name           string `json:"name"`
+	ExternalID     string `json:"externalId"`
+	MinCPU         int    `json:"minCpu"`
+	MaxCPU         int    `json:"maxCpu"`
+	MinMemory      string `json:"minMemory"`
+	MaxMemory      string `json:"maxMemory"`
+	MinDisk        int    `json:"minDisk"`
+	MaxDisk        int    `json:"maxDisk"`
+	Systemprovider *Ref   `json:"systemprovider"`
+}
+
+// SystemRegion represents a datacenter region containing zones.
+type SystemRegion struct {
+	ID    int          `json:"id"`
+	Name  string       `json:"name"`
+	Zones []SystemZone `json:"zones"`
+}
+
+// SystemZone represents a datacenter zone inside a region.
+type SystemZone struct {
+	ID         int    `json:"id"`
+	Name       string `json:"name"`
+	RegionName string `json:"-"` // populated client-side from parent region
+}
+
+// ListSystemProviders calls GET /systems/providers.
+func (c *Client) ListSystemProviders(ctx context.Context, p PaginationParams) ([]SystemProvider, error) {
+	q := url.Values{}
+	p.apply(q)
+	req, err := c.newRequest(ctx, http.MethodGet, "/systems/providers?"+q.Encode(), nil)
+	if err != nil {
+		return nil, err
+	}
+	var out struct {
+		Providers []SystemProvider `json:"providers"`
+	}
+	return out.Providers, c.do(req, &out)
+}
+
+// ListSystemImages returns all images for the given provider.
+// Images are embedded in the GET /systems/providers response.
+func (c *Client) ListSystemImages(ctx context.Context, providerID int, p PaginationParams) ([]SystemImage, error) {
+	providers, err := c.ListSystemProviders(ctx, p)
+	if err != nil {
+		return nil, err
+	}
+	for _, pr := range providers {
+		if pr.ID == providerID {
+			return pr.Images, nil
+		}
+	}
+	return nil, fmt.Errorf("provider %d not found", providerID)
+}
+
+// ListSystemProviderConfigurations calls GET /systems/provider/configurations.
+// Returns all configurations across all providers.
+func (c *Client) ListSystemProviderConfigurations(ctx context.Context, p PaginationParams) ([]SystemProviderConfiguration, error) {
+	q := url.Values{}
+	p.apply(q)
+	req, err := c.newRequest(ctx, http.MethodGet, "/systems/provider/configurations?"+q.Encode(), nil)
+	if err != nil {
+		return nil, err
+	}
+	var out struct {
+		Configurations []SystemProviderConfiguration `json:"providerConfigurations"`
+	}
+	return out.Configurations, c.do(req, &out)
+}
+
+// ListSystemRegions calls GET /systems/regions and returns regions with nested zones.
+func (c *Client) ListSystemRegions(ctx context.Context, p PaginationParams) ([]SystemRegion, error) {
+	q := url.Values{}
+	p.apply(q)
+	req, err := c.newRequest(ctx, http.MethodGet, "/systems/regions?"+q.Encode(), nil)
+	if err != nil {
+		return nil, err
+	}
+	var out struct {
+		Regions []SystemRegion `json:"regions"`
+	}
+	if err := c.do(req, &out); err != nil {
+		return nil, err
+	}
+	// Backfill RegionName for convenience.
+	for i, r := range out.Regions {
+		for j := range out.Regions[i].Zones {
+			out.Regions[i].Zones[j].RegionName = r.Name
+		}
+	}
+	return out.Regions, nil
+}
+
+// ManagementType represents a system management level available for an organisation.
+type ManagementType struct {
+	// Value is the terraform management_type value (e.g. "infra_plus").
+	Value       string
+	Description string
+	// DefaultPrice is the monthly price in euro cents (period=1, default=true).
+	DefaultPrice string
+}
+
+// ListManagementTypes calls GET /systems/priceproposal/organisation/{orgID}
+// and returns the available management types for that organisation.
+func (c *Client) ListManagementTypes(ctx context.Context, orgID int) ([]ManagementType, error) {
+	req, err := c.newRequest(ctx, http.MethodGet,
+		fmt.Sprintf("/systems/priceproposal/organisation/%d", orgID), nil)
+	if err != nil {
+		return nil, err
+	}
+	var out struct {
+		Products map[string][]struct {
+			ID          string `json:"id"`
+			Description string `json:"description"`
+			Prices      []struct {
+				Period  int    `json:"period"`
+				Price   string `json:"price"`
+				Default bool   `json:"default"`
+			} `json:"prices"`
+		} `json:"products"`
+	}
+	if err := c.do(req, &out); err != nil {
+		return nil, err
+	}
+	const prefix = "system_management_"
+	var result []ManagementType
+	seen := map[string]bool{}
+	for _, products := range out.Products {
+		for _, p := range products {
+			if !strings.HasPrefix(p.ID, prefix) {
+				continue
+			}
+			value := strings.TrimPrefix(p.ID, prefix)
+			if seen[value] {
+				continue
+			}
+			seen[value] = true
+			defaultPrice := ""
+			for _, pr := range p.Prices {
+				if pr.Period == 1 && pr.Default {
+					defaultPrice = pr.Price
+					break
+				}
+			}
+			result = append(result, ManagementType{
+				Value:        value,
+				Description:  p.Description,
+				DefaultPrice: defaultPrice,
+			})
+		}
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].Value < result[j].Value })
+	return result, nil
+}
+
+// Network represents a Level27 network.
+type Network struct {
+	ID          int    `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Status      string `json:"status"`
+	IPv4        string `json:"ipv4"`
+	NetmaskV4   int    `json:"netmaskv4"`
+	IPv6        string `json:"ipv6"`
+	NetmaskV6   int    `json:"netmaskv6"`
+	Public      bool   `json:"public"`
+	Customer    bool   `json:"customer"`
+	Internal    bool   `json:"internal"`
+}
+
+// ListNetworks calls GET /networks?type=<networkType>.
+// networkType is one of: "public", "customer", "internal".
+func (c *Client) ListNetworks(ctx context.Context, networkType string, p PaginationParams) ([]Network, error) {
+	q := url.Values{}
+	p.apply(q)
+	if networkType != "" {
+		q.Set("type", networkType)
+	}
+	req, err := c.newRequest(ctx, http.MethodGet, "/networks?"+q.Encode(), nil)
+	if err != nil {
+		return nil, err
+	}
+	var out struct {
+		Networks []Network `json:"networks"`
+	}
+	if err := c.do(req, &out); err != nil {
+		return nil, err
+	}
+	return out.Networks, nil
+}
+
+// GetNetworkByName searches all network types for a network with the given name.
+func (c *Client) GetNetworkByName(ctx context.Context, name string) (*Network, error) {
+	p := PaginationParams{Limit: 10000}
+	for _, t := range []string{"public", "customer", "internal"} {
+		nets, err := c.ListNetworks(ctx, t, p)
+		if err != nil {
+			return nil, fmt.Errorf("searching %s networks: %w", t, err)
+		}
+		for i, n := range nets {
+			if n.Name == name {
+				return &nets[i], nil
+			}
+		}
+	}
+	return nil, fmt.Errorf("network with name %q not found", name)
+}
+
+// SystemHasNetwork represents the link between a system and a network.
+type SystemHasNetwork struct {
+	ID      int     `json:"id"`
+	MAC     string  `json:"mac"`
+	Status  string  `json:"status"`
+	Network Network `json:"network"`
+}
+
+// ListSystemNetworks calls GET /systems/{id}/networks.
+func (c *Client) ListSystemNetworks(ctx context.Context, systemID int) ([]SystemHasNetwork, error) {
+	req, err := c.newRequest(ctx, http.MethodGet, fmt.Sprintf("/systems/%d/networks", systemID), nil)
+	if err != nil {
+		return nil, err
+	}
+	var out struct {
+		SystemHasNetworks []SystemHasNetwork `json:"systemHasNetworks"`
+	}
+	if err := c.do(req, &out); err != nil {
+		return nil, err
+	}
+	return out.SystemHasNetworks, nil
+}
+
+// AddSystemNetwork calls POST /systems/{id}/networks with body {"network": networkID}.
+func (c *Client) AddSystemNetwork(ctx context.Context, systemID, networkID int) (*SystemHasNetwork, error) {
+	body := struct {
+		Network int `json:"network"`
+	}{Network: networkID}
+	req, err := c.newRequest(ctx, http.MethodPost, fmt.Sprintf("/systems/%d/networks", systemID), body)
+	if err != nil {
+		return nil, err
+	}
+	var out struct {
+		SystemHasNetwork SystemHasNetwork `json:"systemHasNetwork"`
+	}
+	if err := c.do(req, &out); err != nil {
+		return nil, err
+	}
+	return &out.SystemHasNetwork, nil
+}
+
+// RemoveSystemNetwork calls DELETE /systems/{systemID}/networks/{systemHasNetworkID}.
+func (c *Client) RemoveSystemNetwork(ctx context.Context, systemID, systemHasNetworkID int) error {
+	req, err := c.newRequest(ctx, http.MethodDelete,
+		fmt.Sprintf("/systems/%d/networks/%d", systemID, systemHasNetworkID), nil)
+	if err != nil {
+		return err
+	}
+	return c.do(req, nil)
+}
+
+// SystemHasNetworkIP represents an IP address assigned to a network interface.
+type SystemHasNetworkIP struct {
+	ID       int    `json:"id"`
+	IPv4     string `json:"ipv4"`
+	Hostname string `json:"hostname"`
+	Status   string `json:"status"`
+}
+
+// LocateNetworkIP calls GET /networks/{id}/locate and returns the first suggested free IPv4.
+func (c *Client) LocateNetworkIP(ctx context.Context, networkID int) (string, error) {
+	req, err := c.newRequest(ctx, http.MethodGet, fmt.Sprintf("/networks/%d/locate", networkID), nil)
+	if err != nil {
+		return "", err
+	}
+	var out struct {
+		IPv4 []string `json:"ipv4"`
+	}
+	if err := c.do(req, &out); err != nil {
+		return "", err
+	}
+	if len(out.IPv4) == 0 {
+		return "", fmt.Errorf("no free IPv4 addresses available in network %d", networkID)
+	}
+	return out.IPv4[0], nil
+}
+
+// ListSystemNetworkIPs calls GET /systems/{id}/networks/{shnID}/ips.
+func (c *Client) ListSystemNetworkIPs(ctx context.Context, systemID, shnID int) ([]SystemHasNetworkIP, error) {
+	req, err := c.newRequest(ctx, http.MethodGet,
+		fmt.Sprintf("/systems/%d/networks/%d/ips", systemID, shnID), nil)
+	if err != nil {
+		return nil, err
+	}
+	var out struct {
+		SystemHasNetworkIps []SystemHasNetworkIP `json:"systemHasNetworkIps"`
+	}
+	if err := c.do(req, &out); err != nil {
+		return nil, err
+	}
+	return out.SystemHasNetworkIps, nil
+}
+
+// AddSystemNetworkIP calls POST /systems/{id}/networks/{shnID}/ips with the given IPv4.
+func (c *Client) AddSystemNetworkIP(ctx context.Context, systemID, shnID int, ipv4 string) error {
+	body := struct {
+		IPv4       string  `json:"ipv4"`
+		PublicIPv4 *string `json:"publicIpv4"`
+		IPv6       *string `json:"ipv6"`
+		PublicIPv6 *string `json:"publicIpv6"`
+		Hostname   string  `json:"hostname"`
+	}{IPv4: ipv4}
+	req, err := c.newRequest(ctx, http.MethodPost,
+		fmt.Sprintf("/systems/%d/networks/%d/ips", systemID, shnID), body)
+	if err != nil {
+		return err
+	}
+	return c.do(req, nil)
+}
+
+// RemoveSystemNetworkIP calls DELETE /systems/{id}/networks/{shnID}/ips/{ipID}.
+func (c *Client) RemoveSystemNetworkIP(ctx context.Context, systemID, shnID, ipID int) error {
+	req, err := c.newRequest(ctx, http.MethodDelete,
+		fmt.Sprintf("/systems/%d/networks/%d/ips/%d", systemID, shnID, ipID), nil)
+	if err != nil {
+		return err
+	}
+	return c.do(req, nil)
 }
 
 // ---------------------------------------------------------------------------

@@ -1,12 +1,12 @@
 # Level27 Provider
 
-The **Level27** Terraform provider lets you manage apps, components, URLs, and SSL certificates on the [Level27](https://level27.eu) hosting platform.
+The **Level27** Terraform provider lets you manage infrastructure and applications on the [Level27](https://level27.eu) hosting platform: virtual servers, network attachments, apps, components, URLs, and SSL certificates.
 
 ## Authentication
 
-You can get your API key at (https://app.level27.eu/account/profile/security)
+Get your API key at <https://app.level27.eu/account/profile/security>.
 
-Set your API key via the `LEVEL27_API_KEY` environment variable (recommended):
+Set it via the `LEVEL27_API_KEY` environment variable (recommended):
 
 ```sh
 export LEVEL27_API_KEY="your-api-key"
@@ -34,6 +34,26 @@ terraform {
 
 provider "level27" {}
 ```
+
+## l27lookup helper
+
+This provider ships a `l27lookup` CLI tool to discover resource IDs and names for your environment. Build it with:
+
+```sh
+make l27lookup
+```
+
+Commands:
+
+| Command | Description |
+|---|---|
+| `./l27lookup orgs` | List organisations (→ `organisation_id`) |
+| `./l27lookup zones` | List datacenter zones (→ `zone_id`) |
+| `./l27lookup configs` | List provider configurations (→ `systemprovider_configuration_id`) |
+| `./l27lookup images <provider_id>` | List OS images (→ `systemimage_id`) |
+| `./l27lookup networks [public\|customer\|internal]` | List networks by type (→ keys for `networks` map) |
+| `./l27lookup mgmt <org_id>` | List management types with EUR pricing |
+| `./l27lookup apps` | List apps |
 
 ## Schema
 

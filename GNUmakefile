@@ -13,7 +13,12 @@ test:
 # Build the provider binary
 .PHONY: build
 build:
-	go build -v ./...
+	go build -v -o terraform-provider-level27 .
+
+# Build the l27lookup helper tool
+.PHONY: l27lookup
+l27lookup:
+	go build -v -o l27lookup ./cmd/l27lookup
 
 # Install the provider locally for development
 .PHONY: install

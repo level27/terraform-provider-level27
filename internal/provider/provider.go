@@ -99,6 +99,7 @@ func (p *Level27Provider) Resources(_ context.Context) []func() resource.Resourc
 		NewAppComponentResource,
 		NewAppComponentURLResource,
 		NewSSLCertificateResource,
+		NewSystemResource,
 	}
 }
 

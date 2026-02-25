@@ -1,0 +1,26 @@
+# Copy this file to terraform.tfvars and adjust values as needed.
+# terraform.tfvars is gitignored and will NOT be committed.
+#
+# Find the correct IDs with:
+#   ./l27lookup orgs                 → organisation_id
+#   ./l27lookup images 1             → systemimage_id   (1 = Level27 provider)
+#   ./l27lookup configs              → systemprovider_configuration_id
+#   ./l27lookup zones                → zone_id
+#   ./l27lookup networks public      → public network names
+#   ./l27lookup networks customer    → customer network names
+
+organisation_id                 = 414   # Fluoline bv
+systemimage_id                  = 255   # ubuntu_2404lts_server
+systemprovider_configuration_id = 45    # Level27 Flexible  (1-64 cpu, 1-256 GB RAM, 20-4000 GB disk)
+zone_id                         = 26    # Brussels Interxion 1 - Zone 1.4 (CP4Prod)
+
+name   = "terraform2.cp4dev.be"
+cpu    = 2
+memory = 1
+disk   = 20
+
+networks = {
+  "my_public_network"   = "auto"      # auto-assign a free IPv4
+  "my_customer_network" = "10.0.1.5"  # manual IP
+  # "my_internal_net"  = ""           # attach without IP
+}
