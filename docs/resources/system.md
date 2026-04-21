@@ -9,12 +9,11 @@ description: |-
 
 Manages a Level27 **System** (virtual server).
 
-The `type`, `organisation_id`, `systemimage_id`, `systemprovider_configuration_id`, `zone_id`, and `parentsystem_id` attributes are **immutable** — changing them forces a replacement.
+The `type`, `systemimage_id`, `systemprovider_configuration_id`, `zone_id`, and `parentsystem_id` attributes are **immutable** — changing them forces a replacement.
 
 Use the `l27lookup` helper (bundled with this provider) to discover IDs for your environment:
 
 ```sh
-./l27lookup orgs                  # organisation_id
 ./l27lookup images 1              # systemimage_id  (1 = Level27 provider)
 ./l27lookup configs               # systemprovider_configuration_id
 ./l27lookup zones                 # zone_id
@@ -31,7 +30,6 @@ Use the `l27lookup` helper (bundled with this provider) to discover IDs for your
 resource "level27_system" "example" {
   name                            = "myserver.example.com"
   type                            = "kvmguest"
-  organisation_id                 = 1
   systemimage_id                  = 89   # ubuntu_2404lts_server
   systemprovider_configuration_id = 17   # Level27 Flexible
   zone_id                         = 1    # Hasselt 1
@@ -48,7 +46,6 @@ resource "level27_system" "example" {
 resource "level27_system" "example" {
   name                            = "myserver.example.com"
   type                            = "kvmguest"
-  organisation_id                 = 1
   systemimage_id                  = 89
   systemprovider_configuration_id = 17
   zone_id                         = 1
@@ -76,7 +73,6 @@ output "system_id" {
 
 - `name` (String) — Hostname (FQDN) of the system, e.g. `myserver.example.com`.
 - `type` (String) — System type. Common values: `kvmguest`, `vmware`, `baremetal`. **Forces replacement.**
-- `organisation_id` (Number) — ID of the organisation that owns this system. **Forces replacement.**
 - `systemimage_id` (Number) — ID of the OS image to use for provisioning. **Forces replacement.**
 - `systemprovider_configuration_id` (Number) — ID of the hardware/hypervisor profile. **Forces replacement.**
 - `zone_id` (Number) — ID of the datacenter zone to deploy the system in. **Forces replacement.**
@@ -113,6 +109,7 @@ output "system_id" {
 ### Read-Only
 
 - `id` (Number) — Unique identifier of the system.
+- `organisation_id` (Number) — ID of the organisation that owns this system (resolved automatically via `/whoami`).
 - `status` (String) — Current provisioning status (e.g. `ok`, `creating`, `deleted`).
 - `status_category` (String) — Status category: `green`, `yellow`, `red`, or `grey`.
 

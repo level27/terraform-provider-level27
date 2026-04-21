@@ -15,10 +15,8 @@ import (
 //
 // Required environment variables:
 //   - LEVEL27_API_KEY
-//   - LEVEL27_TEST_ORG_ID    – Organisation to create the parent app in.
 //   - LEVEL27_TEST_SYSTEM_ID – System (server) ID on which to deploy the component.
 func TestAccAppComponentResource(t *testing.T) {
-	orgID := testAccEnvOrFatal(t, "LEVEL27_TEST_ORG_ID")
 	systemID := testAccEnvOrFatal(t, "LEVEL27_TEST_SYSTEM_ID")
 	resourceName := "level27_app_component.test"
 
@@ -28,7 +26,7 @@ func TestAccAppComponentResource(t *testing.T) {
 		Steps: []resource.TestStep{
 			// Step 1: Create and verify.
 			{
-				Config: testAccAppComponentConfig(orgID, systemID, "tf-acc-comp"),
+				Config: testAccAppComponentConfig(systemID, "tf-acc-comp"),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", "tf-acc-comp"),
 					resource.TestCheckResourceAttr(resourceName, "appcomponenttype", "php"),
@@ -48,7 +46,7 @@ func TestAccAppComponentResource(t *testing.T) {
 			},
 			// Step 3: Update the component name.
 			{
-				Config: testAccAppComponentConfig(orgID, systemID, "tf-acc-comp-updated"),
+				Config: testAccAppComponentConfig(systemID, "tf-acc-comp-updated"),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", "tf-acc-comp-updated"),
 				),
@@ -57,18 +55,17 @@ func TestAccAppComponentResource(t *testing.T) {
 	})
 }
 
-func testAccAppComponentConfig(orgID, systemID, componentName string) string {
+func testAccAppComponentConfig(systemID, componentName string) string {
 	return fmt.Sprintf(`
 resource "level27_app" "test" {
-  name            = "tf-acc-app-comp"
-  organisation_id = %[1]s
+	name = "tf-acc-app-comp"
 }
 
 resource "level27_app_component" "test" {
   app_id          = level27_app.test.id
-  name            = %[3]q
+	name            = %[2]q
   appcomponenttype = "php"
-  system          = %[2]s
+	system          = %[1]s
 }
-`, orgID, systemID, componentName)
+`, systemID, componentName)
 }

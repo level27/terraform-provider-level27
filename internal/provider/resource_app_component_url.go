@@ -124,12 +124,12 @@ func (r *AppComponentURLResource) Configure(_ context.Context, req resource.Conf
 	if req.ProviderData == nil {
 		return
 	}
-	c, ok := req.ProviderData.(*client.Client)
+	pd, ok := req.ProviderData.(*providerData)
 	if !ok {
-		resp.Diagnostics.AddError("Unexpected Provider Data", fmt.Sprintf("Expected *client.Client, got %T", req.ProviderData))
+		resp.Diagnostics.AddError("Unexpected Provider Data", fmt.Sprintf("Expected *providerData, got %T", req.ProviderData))
 		return
 	}
-	r.client = c
+	r.client = pd.client
 }
 
 func (r *AppComponentURLResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {

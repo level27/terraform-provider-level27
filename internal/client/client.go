@@ -418,6 +418,24 @@ type Organisation struct {
 	Name string `json:"name"`
 }
 
+// WhoAmIUser represents the authenticated API user.
+type WhoAmIUser struct {
+	ID           int  `json:"id"`
+	Organisation *Ref `json:"organisation"`
+}
+
+// GetWhoAmIUser calls GET /whoami.
+func (c *Client) GetWhoAmIUser(ctx context.Context) (*WhoAmIUser, error) {
+	req, err := c.newRequest(ctx, http.MethodGet, "/whoami", nil)
+	if err != nil {
+		return nil, err
+	}
+	var out struct {
+		User WhoAmIUser `json:"user"`
+	}
+	return &out.User, c.do(req, &out)
+}
+
 // ListOrganisations calls GET /organisations.
 func (c *Client) ListOrganisations(ctx context.Context, p PaginationParams) ([]Organisation, error) {
 	q := url.Values{}

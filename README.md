@@ -47,8 +47,7 @@ terraform {
 provider "level27" {}
 
 resource "level27_app" "example" {
-  name            = "my-project"
-  organisation_id = 414
+  name = "my-project"
 }
 
 resource "level27_app_component" "php" {
@@ -159,6 +158,10 @@ After creating or updating an app component, the provider polls the API every 3 
 ### handle_dns on URLs
 
 Set `handle_dns = true` on a `level27_app_component_url` **only** when Level27 manages the DNS zone for that domain. Using it for externally managed domains will result in a 400 API error.
+
+### Organisation resolution
+
+The provider resolves your organisation automatically via `GET /whoami`. You no longer need to configure `organisation_id` in resources.
 
 ## License
 

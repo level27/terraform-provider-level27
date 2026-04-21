@@ -17,18 +17,12 @@ provider "level27" {
 # Variables
 # Run `l27lookup` to find the right IDs for your environment:
 #
-#   ./l27lookup orgs                 → organisation_id
 #   ./l27lookup images 1             → systemimage_id
 #   ./l27lookup configs              → systemprovider_configuration_id
 #   ./l27lookup zones                → zone_id
 #   ./l27lookup networks public      → public network names
 #   ./l27lookup networks customer    → customer network names
 # -------------------------------------------------------------------
-
-variable "organisation_id" {
-  description = "Your Level27 organisation ID."
-  type        = number
-}
 
 variable "systemimage_id" {
   description = "OS image ID (see: l27lookup images 1)."
@@ -86,7 +80,6 @@ variable "networks" {
 resource "level27_system" "this" {
   name                            = var.name
   type                            = "kvmguest"
-  organisation_id                 = var.organisation_id
   systemimage_id                  = var.systemimage_id
   systemprovider_configuration_id = var.systemprovider_configuration_id
   zone_id                         = var.zone_id

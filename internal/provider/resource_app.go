@@ -22,7 +22,8 @@ var _ resource.ResourceWithImportState = &AppResource{}
 
 // AppResource defines the resource implementation.
 type AppResource struct {
-	client *client.Client
+	client         *client.Client
+	organisationID int64
 }
 
 // AppResourceModel maps the resource schema data.
@@ -64,9 +65,8 @@ func (r *AppResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *
 				MarkdownDescription: "Name of the app/project.",
 			},
 			"organisation_id": schema.Int64Attribute{
-				Required:            true,
+				Computed:            true,
 				MarkdownDescription: "ID of the organisation that owns this app.",
-				PlanModifiers:       []planmodifier.Int64{int64planmodifier.RequiresReplace()},
 			},
 			"custom_package_id": schema.Int64Attribute{
 				Optional:            true,
@@ -113,12 +113,13 @@ func (r *AppResource) Configure(_ context.Context, req resource.ConfigureRequest
 	if req.ProviderData == nil {
 		return
 	}
-	c, ok := req.ProviderData.(*client.Client)
+	pd, ok := req.ProviderData.(*providerData)
 	if !ok {
-		resp.Diagnostics.AddError("Unexpected Provider Data", fmt.Sprintf("Expected *client.Client, got %T", req.ProviderData))
+		resp.Diagnostics.AddError("Unexpected Provider Data", fmt.Sprintf("Expected *providerData, got %T", req.ProviderData))
 		return
 	}
-	r.client = c
+	r.client = pd.client
+	r.organisationID = pd.organisationID
 }
 
 func (r *AppResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -130,7 +131,7 @@ func (r *AppResource) Create(ctx context.Context, req resource.CreateRequest, re
 
 	creatReq := client.CreateAppRequest{
 		Name:         plan.Name.ValueString(),
-		Organisation: int(plan.OrganisationID.ValueInt64()),
+		Organisation: int(r.organisationID),
 		AutoTeams:    plan.AutoTeams.ValueString(),
 		AutoUpgrades: plan.AutoUpgrades.ValueString(),
 		ExternalInfo: plan.ExternalInfo.ValueString(),
@@ -184,7 +185,7 @@ func (r *AppResource) Update(ctx context.Context, req resource.UpdateRequest, re
 
 	updateReq := client.UpdateAppRequest{
 		Name:         plan.Name.ValueString(),
-		Organisation: int(plan.OrganisationID.ValueInt64()),
+		Organisation: int(r.organisationID),
 		AutoTeams:    plan.AutoTeams.ValueString(),
 		AutoUpgrades: plan.AutoUpgrades.ValueString(),
 		ExternalInfo: plan.ExternalInfo.ValueString(),

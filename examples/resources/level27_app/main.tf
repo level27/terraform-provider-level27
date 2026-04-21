@@ -12,17 +12,11 @@ provider "level27" {
   # api_key = "..." — or set LEVEL27_API_KEY env var
 }
 
-variable "organisation_id" {
-  description = "Your Level27 organisation ID."
-  type        = number
-}
-
 # -------------------------------------------------------------------
 # App
 # -------------------------------------------------------------------
 resource "level27_app" "my_project" {
-  name            = "my-terraform-project"
-  organisation_id = var.organisation_id
+  name = "my-terraform-project"
 
   # custom_package_id   = 456  # optional billing product ID
   # custom_package_name = "drupal_run"  # optional billing product name

@@ -6,8 +6,7 @@ Manages a Level27 **App** (project). An app groups components such as PHP web-ap
 
 ```hcl
 resource "level27_app" "my_project" {
-  name            = "my-terraform-project"
-  organisation_id = 414
+  name = "my-terraform-project"
 
   # Billing product — both fields are optional.
   # custom_package_id   = 456
@@ -20,7 +19,6 @@ resource "level27_app" "my_project" {
 ### Required
 
 - `name` (String) — Name of the app/project.
-- `organisation_id` (Number) — ID of the organisation that owns this app. Forces replacement when changed.
 
 ### Optional
 
@@ -33,6 +31,7 @@ resource "level27_app" "my_project" {
 ### Read-Only (Computed)
 
 - `id` (Number) — Unique identifier of the app.
+- `organisation_id` (Number) — ID of the organisation that owns this app (resolved automatically via `/whoami`).
 - `status` (String) — Current status, e.g. `ok`, `to_create`, `creating`.
 - `status_category` (String) — Status category: `green`, `yellow`, `red`, or `grey`.
 - `hosting_type` (String) — Hosting type: `Agency` or `Classic`.

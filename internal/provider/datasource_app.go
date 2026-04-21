@@ -83,12 +83,12 @@ func (d *AppDataSource) Configure(_ context.Context, req datasource.ConfigureReq
 	if req.ProviderData == nil {
 		return
 	}
-	c, ok := req.ProviderData.(*client.Client)
+	pd, ok := req.ProviderData.(*providerData)
 	if !ok {
-		resp.Diagnostics.AddError("Unexpected Provider Data", fmt.Sprintf("Expected *client.Client, got %T", req.ProviderData))
+		resp.Diagnostics.AddError("Unexpected Provider Data", fmt.Sprintf("Expected *providerData, got %T", req.ProviderData))
 		return
 	}
-	d.client = c
+	d.client = pd.client
 }
 
 func (d *AppDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {

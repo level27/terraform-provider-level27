@@ -47,7 +47,7 @@ Commands:
 
 | Command | Description |
 |---|---|
-| `./l27lookup orgs` | List organisations (→ `organisation_id`) |
+| `./l27lookup orgs` | List organisations (reference only, `organisation_id` is resolved automatically via `/whoami`) |
 | `./l27lookup zones` | List datacenter zones (→ `zone_id`) |
 | `./l27lookup configs` | List provider configurations (→ `systemprovider_configuration_id`) |
 | `./l27lookup images <provider_id>` | List OS images (→ `systemimage_id`) |

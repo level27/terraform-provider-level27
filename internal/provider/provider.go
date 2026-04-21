@@ -5,6 +5,7 @@ package provider
 
 import (
 	"context"
+	"fmt"
 	"os"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -23,6 +24,11 @@ var _ provider.ProviderWithFunctions = &Level27Provider{}
 // Level27Provider is the provider implementation.
 type Level27Provider struct {
 	version string
+}
+
+type providerData struct {
+	client         *client.Client
+	organisationID int64
 }
 
 // Level27ProviderModel maps provider schema data to a Go type.
@@ -89,8 +95,24 @@ func (p *Level27Provider) Configure(ctx context.Context, req provider.ConfigureR
 	}
 
 	c := client.New(apiKey, apiURL)
-	resp.DataSourceData = c
-	resp.ResourceData = c
+
+	me, err := c.GetWhoAmIUser(ctx)
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to resolve authenticated user", fmt.Sprintf("Calling /whoami failed: %s", err))
+		return
+	}
+	if me.Organisation == nil {
+		resp.Diagnostics.AddError("Missing organisation in /whoami response", "The authenticated user did not include an organisation in /whoami response.")
+		return
+	}
+
+	pd := &providerData{
+		client:         c,
+		organisationID: int64(me.Organisation.ID),
+	}
+
+	resp.DataSourceData = pd
+	resp.ResourceData = pd
 }
 
 func (p *Level27Provider) Resources(_ context.Context) []func() resource.Resource {
