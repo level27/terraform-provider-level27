@@ -5,6 +5,7 @@ package provider
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -40,11 +41,12 @@ type AppComponentResourceModel struct {
 	Systemgroup      types.Int64  `tfsdk:"systemgroup"`
 	LimitGroup       types.String `tfsdk:"limit_group"`
 	// Type-specific
-	Version     types.String `tfsdk:"version"`
-	Path        types.String `tfsdk:"path"`
-	Pass        types.String `tfsdk:"pass"`
-	SSHKeys     types.List   `tfsdk:"sshkeys"`
-	ExtraConfig types.String `tfsdk:"extraconfig"`
+	Version            types.String `tfsdk:"version"`
+	Path               types.String `tfsdk:"path"`
+	Pass               types.String `tfsdk:"pass"`
+	SSHKeys            types.List   `tfsdk:"sshkeys"`
+	ExtraConfig        types.String `tfsdk:"extraconfig"`
+	ParentAppcomponent types.Int64  `tfsdk:"parent_appcomponent"`
 	// Computed
 	Status         types.String `tfsdk:"status"`
 	StatusCategory types.String `tfsdk:"status_category"`
@@ -130,6 +132,11 @@ func (r *AppComponentResource) Schema(_ context.Context, _ resource.SchemaReques
 				Optional:            true,
 				MarkdownDescription: "Extra configuration for PHP/ASP components (custom php.ini directives, etc.).",
 			},
+			"parent_appcomponent": schema.Int64Attribute{
+				Optional:            true,
+				MarkdownDescription: "ID of the parent app component. Required for component types that depend on a parent (e.g. `varnish` requires a `php` parent).",
+				PlanModifiers:       []planmodifier.Int64{int64planmodifier.RequiresReplace()},
+			},
 			// Computed
 			"status": schema.StringAttribute{
 				Computed:            true,
@@ -185,16 +192,44 @@ func (r *AppComponentResource) Create(ctx context.Context, req resource.CreateRe
 	}
 
 	createReq := client.CreateAppComponentRequest{
-		Name:             plan.Name.ValueString(),
-		AppComponentType: plan.AppComponentType.ValueString(),
-		System:           int(plan.System.ValueInt64()),
-		SystemGroup:      int(plan.Systemgroup.ValueInt64()),
-		LimitGroup:       plan.LimitGroup.ValueString(),
-		Version:          version,
-		Path:             plan.Path.ValueString(),
-		Pass:             plan.Pass.ValueString(),
-		SSHKeys:          sshKeys,
-		ExtraConfig:      plan.ExtraConfig.ValueString(),
+		Name:               plan.Name.ValueString(),
+		AppComponentType:   plan.AppComponentType.ValueString(),
+		System:             int(plan.System.ValueInt64()),
+		SystemGroup:        int(plan.Systemgroup.ValueInt64()),
+		LimitGroup:         plan.LimitGroup.ValueString(),
+		Version:            version,
+		Path:               plan.Path.ValueString(),
+		Pass:               plan.Pass.ValueString(),
+		SSHKeys:            sshKeys,
+		ExtraConfig:        plan.ExtraConfig.ValueString(),
+		ParentAppcomponent: int(plan.ParentAppcomponent.ValueInt64()),
+	}
+
+	if plan.AppComponentType.ValueString() == "varnish" {
+		if plan.ParentAppcomponent.IsNull() || plan.ParentAppcomponent.IsUnknown() || plan.ParentAppcomponent.ValueInt64() == 0 {
+			resp.Diagnostics.AddError("Missing parent_appcomponent", "varnish components require parent_appcomponent so the provider can resolve the correct parent user.")
+			return
+		}
+
+		parent, err := r.client.GetAppComponent(ctx, int(plan.AppID.ValueInt64()), int(plan.ParentAppcomponent.ValueInt64()))
+		if err != nil {
+			resp.Diagnostics.AddError("Error resolving parent app component", err.Error())
+			return
+		}
+
+		var parentParams struct {
+			User string `json:"user"`
+		}
+		if err := json.Unmarshal(parent.AppComponentParameters, &parentParams); err != nil {
+			resp.Diagnostics.AddError("Error parsing parent component parameters", err.Error())
+			return
+		}
+		if parentParams.User == "" {
+			resp.Diagnostics.AddError("Missing parent user", "Could not resolve a user from parent appcomponent parameters; varnish creation requires this value.")
+			return
+		}
+
+		createReq.User = parentParams.User
 	}
 
 	comp, err := r.client.CreateAppComponent(ctx, int(plan.AppID.ValueInt64()), createReq)
@@ -309,6 +344,7 @@ func (r *AppComponentResource) ImportState(ctx context.Context, req resource.Imp
 
 	var state AppComponentResourceModel
 	state.AppID = types.Int64Value(appID)
+	state.SSHKeys = types.ListNull(types.Int64Type)
 	flattenComponent(comp, &state)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }

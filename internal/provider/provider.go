@@ -101,14 +101,14 @@ func (p *Level27Provider) Configure(ctx context.Context, req provider.ConfigureR
 		resp.Diagnostics.AddError("Failed to resolve authenticated user", fmt.Sprintf("Calling /whoami failed: %s", err))
 		return
 	}
-	if me.Organisation == nil {
-		resp.Diagnostics.AddError("Missing organisation in /whoami response", "The authenticated user did not include an organisation in /whoami response.")
+	if me.OrganisationID == 0 {
+		resp.Diagnostics.AddError("Missing organisation for authenticated user", "The authenticated user does not have an organisation assigned.")
 		return
 	}
 
 	pd := &providerData{
 		client:         c,
-		organisationID: int64(me.Organisation.ID),
+		organisationID: int64(me.OrganisationID),
 	}
 
 	resp.DataSourceData = pd

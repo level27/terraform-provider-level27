@@ -420,8 +420,11 @@ type Organisation struct {
 
 // WhoAmIUser represents the authenticated API user.
 type WhoAmIUser struct {
-	ID           int  `json:"id"`
-	Organisation *Ref `json:"organisation"`
+	ID             int    `json:"userId"`
+	OrganisationID int    `json:"organisationId"`
+	Username       string `json:"username"`
+	Name           string `json:"name"`
+	Email          string `json:"email"`
 }
 
 // GetWhoAmIUser calls GET /whoami.
@@ -430,10 +433,8 @@ func (c *Client) GetWhoAmIUser(ctx context.Context) (*WhoAmIUser, error) {
 	if err != nil {
 		return nil, err
 	}
-	var out struct {
-		User WhoAmIUser `json:"user"`
-	}
-	return &out.User, c.do(req, &out)
+	var user WhoAmIUser
+	return &user, c.do(req, &user)
 }
 
 // ListOrganisations calls GET /organisations.
@@ -930,16 +931,18 @@ type AppComponent struct {
 type CreateAppComponentRequest struct {
 	Name             string `json:"name"`
 	AppComponentType string `json:"appcomponenttype"`
+	User             string `json:"user,omitempty"`
 	System           int    `json:"system,omitempty"`
 	SystemGroup      int    `json:"systemgroup,omitempty"`
 	LimitGroup       string `json:"limitGroup,omitempty"`
 	// Type-specific parameters
-	Version     string `json:"version,omitempty"`
-	Path        string `json:"path,omitempty"`
-	Pass        string `json:"pass,omitempty"`
-	SSHKeys     []int  `json:"sshkeys,omitempty"`
-	ExtraConfig string `json:"extraconfig,omitempty"`
-	Jailed      *bool  `json:"jailed,omitempty"`
+	Version            string `json:"version,omitempty"`
+	Path               string `json:"path,omitempty"`
+	Pass               string `json:"pass,omitempty"`
+	SSHKeys            []int  `json:"sshkeys,omitempty"`
+	ExtraConfig        string `json:"extraconfig,omitempty"`
+	Jailed             *bool  `json:"jailed,omitempty"`
+	ParentAppcomponent int    `json:"parentAppcomponent,omitempty"`
 }
 
 // UpdateAppComponentRequest is the body for PUT/PATCH /apps/{appId}/components/{componentId}.
