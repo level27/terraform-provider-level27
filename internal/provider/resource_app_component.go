@@ -190,6 +190,13 @@ func (r *AppComponentResource) Create(ctx context.Context, req resource.CreateRe
 			}
 		}
 	}
+	if version == "" {
+		resp.Diagnostics.AddError(
+			"Missing version",
+			"The `version` attribute is required. When using `systemgroup`, the version cannot be auto-detected — please specify it explicitly (e.g. \"8.2\" for PHP, \"8.4\" for MySQL).",
+		)
+		return
+	}
 
 	createReq := client.CreateAppComponentRequest{
 		Name:               plan.Name.ValueString(),
@@ -285,6 +292,13 @@ func (r *AppComponentResource) Update(ctx context.Context, req resource.UpdateRe
 				updateVersion = v
 			}
 		}
+	}
+	if updateVersion == "" {
+		resp.Diagnostics.AddError(
+			"Missing version",
+			"The `version` attribute is required. When using `systemgroup`, the version cannot be auto-detected — please specify it explicitly (e.g. \"8.2\" for PHP, \"8.4\" for MySQL).",
+		)
+		return
 	}
 
 	err := r.client.UpdateAppComponent(ctx, int(plan.AppID.ValueInt64()), int(plan.ID.ValueInt64()), client.UpdateAppComponentRequest{

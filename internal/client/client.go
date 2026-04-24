@@ -1219,6 +1219,45 @@ func (c *Client) UpdateSSLCertificate(ctx context.Context, appID, certID int, bo
 	return c.do(req, nil)
 }
 
+// ---------------------------------------------------------------------------
+// SSH Keys
+// ---------------------------------------------------------------------------
+
+// SSHKey represents a Level27 SSH public key belonging to a user.
+type SSHKey struct {
+	ID          int    `json:"id"`
+	Description string `json:"description"`
+	Content     string `json:"content"`
+	Fingerprint string `json:"fingerprint"`
+	Status      string `json:"status"`
+}
+
+// ListSSHKeys calls GET /organisations/{orgID}/users/{userID}/sshkeys.
+func (c *Client) ListSSHKeys(ctx context.Context, orgID, userID int) ([]SSHKey, error) {
+	path := fmt.Sprintf("/organisations/%d/users/%d/sshkeys", orgID, userID)
+	req, err := c.newRequest(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return nil, err
+	}
+	var out struct {
+		SSHKeys []SSHKey `json:"sshkeys"`
+	}
+	return out.SSHKeys, c.do(req, &out)
+}
+
+// ListOrgSSHKeys calls GET /organisations/{orgID}/sshkeys (deploy keys).
+func (c *Client) ListOrgSSHKeys(ctx context.Context, orgID int) ([]SSHKey, error) {
+	path := fmt.Sprintf("/organisations/%d/sshkeys", orgID)
+	req, err := c.newRequest(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return nil, err
+	}
+	var out struct {
+		SSHKeys []SSHKey `json:"sshkeys"`
+	}
+	return out.SSHKeys, c.do(req, &out)
+}
+
 // DeleteSSLCertificate calls DELETE /apps/{appId}/sslcertificates/{sslcertificateId}.
 func (c *Client) DeleteSSLCertificate(ctx context.Context, appID, certID int) error {
 	req, err := c.newRequest(ctx, http.MethodDelete,

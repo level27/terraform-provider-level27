@@ -54,6 +54,7 @@ Commands:
 | `./l27lookup networks [public\|customer\|internal]` | List networks by type (→ keys for `networks` map) |
 | `./l27lookup mgmt <org_id>` | List management types with EUR pricing |
 | `./l27lookup apps` | List apps |
+| `./l27lookup sshkeys` | List personal SSH keys and organisation deploy keys for the authenticated user (→ `sshkey_id`) |
 
 ## Schema
 
