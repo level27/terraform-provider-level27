@@ -109,7 +109,7 @@ func (r *AppComponentResource) Schema(_ context.Context, _ resource.SchemaReques
 			},
 			"version": schema.StringAttribute{
 				Optional:            true,
-				MarkdownDescription: "Version of the component runtime (e.g. PHP version `8.2`, MySQL version `8.4`). If omitted, the version is auto-detected from the system's installed cookbooks.",
+				MarkdownDescription: "Version of the component runtime (e.g. PHP version `8.2`, MySQL version `8.4`). If omitted, the version is auto-detected from the system's installed services.",
 			},
 			"path": schema.StringAttribute{
 				Optional:            true,
@@ -178,7 +178,7 @@ func (r *AppComponentResource) Create(ctx context.Context, req resource.CreateRe
 	if version == "" && !plan.System.IsNull() && !plan.System.IsUnknown() {
 		sys, sysErr := r.client.GetSystem(ctx, int(plan.System.ValueInt64()))
 		if sysErr == nil {
-			if v := sys.FindCookbookVersion(plan.AppComponentType.ValueString()); v != "" {
+			if v := sys.FindServiceVersion(plan.AppComponentType.ValueString()); v != "" {
 				version = v
 			}
 		}
@@ -246,7 +246,7 @@ func (r *AppComponentResource) Update(ctx context.Context, req resource.UpdateRe
 	if updateVersion == "" && !plan.System.IsNull() && !plan.System.IsUnknown() {
 		sys, sysErr := r.client.GetSystem(ctx, int(plan.System.ValueInt64()))
 		if sysErr == nil {
-			if v := sys.FindCookbookVersion(plan.AppComponentType.ValueString()); v != "" {
+			if v := sys.FindServiceVersion(plan.AppComponentType.ValueString()); v != "" {
 				updateVersion = v
 			}
 		}

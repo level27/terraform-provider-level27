@@ -194,22 +194,22 @@ func (p PaginationParams) apply(q url.Values) {
 // System
 // ---------------------------------------------------------------------------
 
-// SystemCookbook represents a single cookbook installed on a system.
-type SystemCookbook struct {
-	ID                 int                          `json:"id"`
-	CookbookType       string                       `json:"cookbooktype"`
-	CookbookParameters map[string]CookbookParameter `json:"cookbookparameters"`
+// SystemService represents a single service installed on a system.
+type SystemService struct {
+	ID                int                         `json:"id"`
+	ServiceType       string                      `json:"cookbooktype"`
+	ServiceParameters map[string]ServiceParameter `json:"cookbookparameters"`
 }
 
-// CookbookParameter holds the value for a single cookbook parameter.
+// ServiceParameter holds the value for a single service parameter.
 // The value can be a string, number, bool, or array of strings.
-type CookbookParameter struct {
+type ServiceParameter struct {
 	Value json.RawMessage `json:"value"`
 }
 
-// Versions returns the list of versions for this cookbook parameter.
+// Versions returns the list of versions for this service parameter.
 // The API returns either a string or []string.
-func (cp CookbookParameter) Versions() []string {
+func (cp ServiceParameter) Versions() []string {
 	var arr []string
 	if err := json.Unmarshal(cp.Value, &arr); err == nil {
 		return arr
@@ -223,23 +223,23 @@ func (cp CookbookParameter) Versions() []string {
 
 // System represents a Level27 system (server).
 type System struct {
-	ID                          int              `json:"id"`
-	Name                        string           `json:"name"`
-	CustomerFqdn                string           `json:"customerFqdn"`
-	Type                        string           `json:"type"`
-	Status                      string           `json:"status"`
-	StatusCategory              string           `json:"statusCategory"`
-	CPU                         int              `json:"cpu"`
-	Disk                        jsonInt          `json:"disk"`
-	Memory                      int              `json:"memory"`
-	ManagementType              string           `json:"managementType"`
-	ExternalInfo                string           `json:"externalInfo"`
-	Organisation                *Ref             `json:"organisation"`
-	Zone                        *Ref             `json:"zone"`
-	Systemimage                 *Ref             `json:"systemimage"`
-	SystemproviderConfiguration *Ref             `json:"systemproviderConfiguration"`
-	Parentsystem                *Ref             `json:"parentsystem"`
-	Cookbooks                   []SystemCookbook `json:"cookbooks"`
+	ID                          int             `json:"id"`
+	Name                        string          `json:"name"`
+	CustomerFqdn                string          `json:"customerFqdn"`
+	Type                        string          `json:"type"`
+	Status                      string          `json:"status"`
+	StatusCategory              string          `json:"statusCategory"`
+	CPU                         int             `json:"cpu"`
+	Disk                        jsonInt         `json:"disk"`
+	Memory                      int             `json:"memory"`
+	ManagementType              string          `json:"managementType"`
+	ExternalInfo                string          `json:"externalInfo"`
+	Organisation                *Ref            `json:"organisation"`
+	Zone                        *Ref            `json:"zone"`
+	Systemimage                 *Ref            `json:"systemimage"`
+	SystemproviderConfiguration *Ref            `json:"systemproviderConfiguration"`
+	Parentsystem                *Ref            `json:"parentsystem"`
+	Services                    []SystemService `json:"cookbooks"`
 }
 
 // CreateSystemRequest is the body for POST /systems.
@@ -318,22 +318,55 @@ func (c *Client) DeleteSystem(ctx context.Context, id int) error {
 	return c.do(req, nil)
 }
 
+// PerformSystemAction calls POST /systems/{id}/actions with the given action name.
+// Common actions: "autoInstall", "start", "stop", "reboot".
+func (c *Client) PerformSystemAction(ctx context.Context, systemID int, action string) error {
+	body := struct {
+		Action string `json:"action"`
+	}{Action: action}
+	req, err := c.newRequest(ctx, http.MethodPost,
+		fmt.Sprintf("/systems/%d/actions", systemID), body)
+	if err != nil {
+		return err
+	}
+	return c.do(req, nil)
+}
+
 // WaitForSystemStatus polls GET /systems/{id} until the status is no longer
 // transitional. Returns the final system or an error.
 func (c *Client) WaitForSystemStatus(ctx context.Context, id int) (*System, error) {
 	transitional := map[string]bool{
-		"to_create": true,
-		"creating":  true,
-		"to_update": true,
-		"updating":  true,
-		"to_delete": true,
-		"deleting":  true,
+		"to_create":  true,
+		"creating":   true,
+		"to_update":  true,
+		"updating":   true,
+		"to_delete":  true,
+		"deleting":   true,
+		"to_install": true,
+		"installing": true,
 	}
+	consecutiveErrors := 0
+	const maxConsecutiveErrors = 5
 	for {
 		sys, err := c.GetSystem(ctx, id)
 		if err != nil {
-			return nil, err
+			// Tolerate transient network errors (timeouts, connection resets) for
+			// up to maxConsecutiveErrors attempts before giving up.
+			if ctx.Err() != nil {
+				return nil, ctx.Err()
+			}
+			consecutiveErrors++
+			if consecutiveErrors > maxConsecutiveErrors {
+				return nil, fmt.Errorf("too many consecutive errors waiting for system status: %w", err)
+			}
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(15 * time.Second):
+			}
+			continue
 		}
+		consecutiveErrors = 0
 		if !transitional[sys.Status] {
 			if sys.StatusCategory == "red" {
 				return nil, fmt.Errorf("system reached error status: %s", sys.Status)
@@ -348,17 +381,17 @@ func (c *Client) WaitForSystemStatus(ctx context.Context, id int) (*System, erro
 	}
 }
 
-// FindCookbookVersion looks up the highest available version for the given
-// cookbook type on this system. Returns "" if not found.
+// FindServiceVersion looks up the highest available version for the given
+// service type on this system. Returns "" if not found.
 // The API stores versions under either "version" or "versions" key.
-func (s *System) FindCookbookVersion(cookbookType string) string {
-	for _, cb := range s.Cookbooks {
-		if cb.CookbookType != cookbookType {
+func (s *System) FindServiceVersion(serviceType string) string {
+	for _, svc := range s.Services {
+		if svc.ServiceType != serviceType {
 			continue
 		}
 		var all []string
 		for _, key := range []string{"version", "versions"} {
-			if vp, ok := cb.CookbookParameters[key]; ok {
+			if vp, ok := svc.ServiceParameters[key]; ok {
 				all = append(all, vp.Versions()...)
 			}
 		}

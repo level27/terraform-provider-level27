@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64default"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -46,6 +47,7 @@ type SystemResourceModel struct {
 	ExternalInfo           types.String `tfsdk:"external_info"`
 	ParentsystemID         types.Int64  `tfsdk:"parentsystem_id"`
 	Networks               types.Map    `tfsdk:"networks"`
+	AutoInstall            types.Bool   `tfsdk:"auto_install"`
 	// Computed
 	Status         types.String `tfsdk:"status"`
 	StatusCategory types.String `tfsdk:"status_category"`
@@ -158,6 +160,15 @@ func (r *SystemResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 					"Use an empty string `\"\"` for no IP on that interface. " +
 					"Once `\"auto\"` is applied, the state preserves `\"auto\"` so subsequent plans are stable.",
 			},
+			"auto_install": schema.BoolAttribute{
+				Optional: true,
+				Computed: true,
+				Default:  booldefault.StaticBool(true),
+				MarkdownDescription: "When `true` (default), triggers OS installation (`autoInstall`) immediately after " +
+					"the system is allocated and networks are configured, by calling `POST /systems/{id}/actions` " +
+					"with `autoInstall`. The provider waits until installation completes. " +
+					"Set to `false` to skip automatic installation.",
+			},
 		},
 	}
 }
@@ -242,6 +253,20 @@ func (r *SystemResource) Create(ctx context.Context, req resource.CreateRequest,
 	if diags := r.readNetworks(ctx, int(plan.ID.ValueInt64()), &plan, plan.Networks); diags != nil {
 		resp.Diagnostics.Append(diags...)
 		return
+	}
+
+	// Trigger OS installation if requested and the system is in "stopped" state.
+	if (plan.AutoInstall.IsNull() || plan.AutoInstall.ValueBool()) && sys.Status == "stopped" {
+		if err := r.client.PerformSystemAction(ctx, int(plan.ID.ValueInt64()), "autoInstall"); err != nil {
+			resp.Diagnostics.AddError("Error triggering autoInstall", err.Error())
+			return
+		}
+		sys, err = r.client.WaitForSystemStatus(ctx, int(plan.ID.ValueInt64()))
+		if err != nil {
+			resp.Diagnostics.AddError("Error waiting for system installation", err.Error())
+			return
+		}
+		flattenSystem(sys, &plan)
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)

@@ -79,7 +79,11 @@ variable "networks" {
   type        = map(string)
   default     = {}
 }
-
+variable "auto_install" {
+  description = "Trigger OS installation after network attachment. Set to false to skip."
+  type        = bool
+  default     = true
+}
 # -------------------------------------------------------------------
 # System (virtual server)
 # -------------------------------------------------------------------
@@ -96,7 +100,8 @@ resource "level27_system" "this" {
   disk            = var.disk
   management_type = var.management_type
 
-  networks = var.networks
+  networks     = var.networks
+  auto_install = var.auto_install
 }
 
 output "system_id" {

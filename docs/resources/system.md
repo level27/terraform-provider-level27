@@ -107,6 +107,7 @@ output "system_id" {
 
   Networks not in the map are detached from the system.
 
+- `auto_install` (Boolean) — When `true` (default), triggers OS installation (`autoInstall`) immediately after the system is allocated and networks are configured. The provider calls `POST /systems/{id}/actions` with `autoInstall` and waits until installation completes. Only fires when the system status is `stopped`. Set to `false` to skip automatic installation. Default: `true`.
 - `parentsystem_id` (Number) — ID of the parent host system for nested virtualisation. Usually auto-assigned by the API. Setting this explicitly forces replacement when changed.
 - `period` (Number) — Billing period in months. Default: `1`.
 
