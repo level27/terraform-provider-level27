@@ -14,9 +14,7 @@ import (
 //
 // Required environment variables:
 //   - LEVEL27_API_KEY
-//   - LEVEL27_TEST_ORG_ID  – ID of the organisation to create the test app in.
 func TestAccAppResource(t *testing.T) {
-	orgID := testAccEnvOrFatal(t, "LEVEL27_TEST_ORG_ID")
 	resourceName := "level27_app.test"
 
 	resource.Test(t, resource.TestCase{
@@ -25,10 +23,10 @@ func TestAccAppResource(t *testing.T) {
 		Steps: []resource.TestStep{
 			// Step 1: Create and verify initial state.
 			{
-				Config: testAccAppConfig(orgID, "tf-acc-app"),
+				Config: testAccAppConfig("tf-acc-app"),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", "tf-acc-app"),
-					resource.TestCheckResourceAttr(resourceName, "organisation_id", orgID),
+					resource.TestCheckResourceAttrSet(resourceName, "organisation_id"),
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
 					resource.TestCheckResourceAttrSet(resourceName, "status"),
 					resource.TestCheckResourceAttrSet(resourceName, "status_category"),
@@ -43,7 +41,7 @@ func TestAccAppResource(t *testing.T) {
 			},
 			// Step 3: Update name and verify the change is applied.
 			{
-				Config: testAccAppConfig(orgID, "tf-acc-app-updated"),
+				Config: testAccAppConfig("tf-acc-app-updated"),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", "tf-acc-app-updated"),
 				),
@@ -52,11 +50,10 @@ func TestAccAppResource(t *testing.T) {
 	})
 }
 
-func testAccAppConfig(orgID, name string) string {
+func testAccAppConfig(name string) string {
 	return fmt.Sprintf(`
 resource "level27_app" "test" {
-  name            = %[2]q
-  organisation_id = %[1]s
+  name = %[1]q
 }
-`, orgID, name)
+`, name)
 }

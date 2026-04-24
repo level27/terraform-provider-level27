@@ -22,6 +22,9 @@ var testAccProtoV6ProviderFactories = map[string]func() (tfprotov6.ProviderServe
 // present before any acceptance test runs.
 func testAccPreCheck(t *testing.T) {
 	t.Helper()
+	if os.Getenv("TF_ACC") == "" {
+		t.Skip("Acceptance tests skipped unless env 'TF_ACC' set")
+	}
 	if v := os.Getenv("LEVEL27_API_KEY"); v == "" {
 		t.Fatal("LEVEL27_API_KEY must be set for acceptance tests")
 	}
@@ -31,6 +34,9 @@ func testAccPreCheck(t *testing.T) {
 // marks the test as failed if the variable is empty.
 func testAccEnvOrFatal(t *testing.T, env string) string {
 	t.Helper()
+	if os.Getenv("TF_ACC") == "" {
+		t.Skip("Acceptance tests skipped unless env 'TF_ACC' set")
+	}
 	v := os.Getenv(env)
 	if v == "" {
 		t.Fatalf("%s must be set for this acceptance test", env)

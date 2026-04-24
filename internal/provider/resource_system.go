@@ -26,7 +26,8 @@ var _ resource.ResourceWithImportState = &SystemResource{}
 
 // SystemResource manages a Level27 system (server).
 type SystemResource struct {
-	client *client.Client
+	client         *client.Client
+	organisationID int64
 }
 
 // SystemResourceModel maps the resource schema data.
@@ -64,7 +65,7 @@ func (r *SystemResource) Metadata(_ context.Context, req resource.MetadataReques
 func (r *SystemResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "Manages a Level27 **System** (virtual server). " +
-			"The `type`, `organisation_id`, `systemimage_id`, `systemprovider_configuration_id`, `zone_id`, and `parentsystem_id` are immutable after creation — changing them forces a replacement.",
+			"The `type`, `systemimage_id`, `systemprovider_configuration_id`, `zone_id`, and `parentsystem_id` are immutable after creation — changing them forces a replacement.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.Int64Attribute{
 				Computed:            true,
@@ -87,9 +88,8 @@ func (r *SystemResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 				PlanModifiers:       []planmodifier.String{stringplanmodifier.RequiresReplace()},
 			},
 			"organisation_id": schema.Int64Attribute{
-				Required:            true,
+				Computed:            true,
 				MarkdownDescription: "ID of the organisation that owns this system.",
-				PlanModifiers:       []planmodifier.Int64{int64planmodifier.RequiresReplace()},
 			},
 			"systemimage_id": schema.Int64Attribute{
 				Required:            true,
@@ -177,12 +177,13 @@ func (r *SystemResource) Configure(_ context.Context, req resource.ConfigureRequ
 	if req.ProviderData == nil {
 		return
 	}
-	c, ok := req.ProviderData.(*client.Client)
+	pd, ok := req.ProviderData.(*providerData)
 	if !ok {
-		resp.Diagnostics.AddError("Unexpected Provider Data", fmt.Sprintf("Expected *client.Client, got %T", req.ProviderData))
+		resp.Diagnostics.AddError("Unexpected Provider Data", fmt.Sprintf("Expected *providerData, got %T", req.ProviderData))
 		return
 	}
-	r.client = c
+	r.client = pd.client
+	r.organisationID = pd.organisationID
 }
 
 func (r *SystemResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -195,7 +196,7 @@ func (r *SystemResource) Create(ctx context.Context, req resource.CreateRequest,
 	body := client.CreateSystemRequest{
 		Name:                        plan.Name.ValueString(),
 		Type:                        plan.Type.ValueString(),
-		Organisation:                int(plan.OrganisationID.ValueInt64()),
+		Organisation:                int(r.organisationID),
 		Systemimage:                 int(plan.SystemimageID.ValueInt64()),
 		SystemproviderConfiguration: int(plan.SystemproviderConfigID.ValueInt64()),
 		Zone:                        int(plan.ZoneID.ValueInt64()),
@@ -310,7 +311,7 @@ func (r *SystemResource) Update(ctx context.Context, req resource.UpdateRequest,
 	body := client.UpdateSystemRequest{
 		Name:                        plan.Name.ValueString(),
 		Type:                        plan.Type.ValueString(),
-		Organisation:                int(plan.OrganisationID.ValueInt64()),
+		Organisation:                int(r.organisationID),
 		Systemimage:                 int(plan.SystemimageID.ValueInt64()),
 		SystemproviderConfiguration: int(plan.SystemproviderConfigID.ValueInt64()),
 		Zone:                        int(plan.ZoneID.ValueInt64()),

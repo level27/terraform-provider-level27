@@ -14,12 +14,10 @@ import (
 //
 // Required environment variables:
 //   - LEVEL27_API_KEY
-//   - LEVEL27_TEST_ORG_ID              – Organisation to create the system in.
 //   - LEVEL27_TEST_SYSTEMIMAGE_ID      – System image ID to use for provisioning.
 //   - LEVEL27_TEST_SYSTEMPROVIDER_ID   – System provider configuration ID.
 //   - LEVEL27_TEST_ZONE_ID             – Zone ID to deploy into.
 func TestAccSystemResource(t *testing.T) {
-	orgID := testAccEnvOrFatal(t, "LEVEL27_TEST_ORG_ID")
 	imageID := testAccEnvOrFatal(t, "LEVEL27_TEST_SYSTEMIMAGE_ID")
 	providerCfgID := testAccEnvOrFatal(t, "LEVEL27_TEST_SYSTEMPROVIDER_ID")
 	zoneID := testAccEnvOrFatal(t, "LEVEL27_TEST_ZONE_ID")
@@ -31,11 +29,11 @@ func TestAccSystemResource(t *testing.T) {
 		Steps: []resource.TestStep{
 			// Step 1: Create the system and verify initial state.
 			{
-				Config: testAccSystemConfig(orgID, imageID, providerCfgID, zoneID, "tf-acc-system.example.com", 1, 1, 20),
+				Config: testAccSystemConfig(imageID, providerCfgID, zoneID, "tf-acc-system.example.com", 1, 1, 20),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", "tf-acc-system.example.com"),
 					resource.TestCheckResourceAttr(resourceName, "type", "kvmguest"),
-					resource.TestCheckResourceAttr(resourceName, "organisation_id", orgID),
+					resource.TestCheckResourceAttrSet(resourceName, "organisation_id"),
 					resource.TestCheckResourceAttr(resourceName, "cpu", "1"),
 					resource.TestCheckResourceAttr(resourceName, "memory", "1"),
 					resource.TestCheckResourceAttr(resourceName, "disk", "20"),
@@ -54,7 +52,7 @@ func TestAccSystemResource(t *testing.T) {
 			},
 			// Step 3: Update CPU and memory (scale up).
 			{
-				Config: testAccSystemConfig(orgID, imageID, providerCfgID, zoneID, "tf-acc-system.example.com", 2, 2, 20),
+				Config: testAccSystemConfig(imageID, providerCfgID, zoneID, "tf-acc-system.example.com", 2, 2, 20),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "cpu", "2"),
 					resource.TestCheckResourceAttr(resourceName, "memory", "2"),
@@ -64,19 +62,18 @@ func TestAccSystemResource(t *testing.T) {
 	})
 }
 
-func testAccSystemConfig(orgID, imageID, providerCfgID, zoneID, name string, cpu, memory, disk int) string {
+func testAccSystemConfig(imageID, providerCfgID, zoneID, name string, cpu, memory, disk int) string {
 	return fmt.Sprintf(`
 resource "level27_system" "test" {
-  name                            = %[5]q
+	name                            = %[4]q
   type                            = "kvmguest"
-  organisation_id                 = %[1]s
-  systemimage_id                  = %[2]s
-  systemprovider_configuration_id = %[3]s
-  zone_id                         = %[4]s
-  cpu                             = %[6]d
-  memory                          = %[7]d
-  disk                            = %[8]d
+	systemimage_id                  = %[1]s
+	systemprovider_configuration_id = %[2]s
+	zone_id                         = %[3]s
+	cpu                             = %[5]d
+	memory                          = %[6]d
+	disk                            = %[7]d
   management_type                 = "infra_plus"
 }
-`, orgID, imageID, providerCfgID, zoneID, name, cpu, memory, disk)
+`, imageID, providerCfgID, zoneID, name, cpu, memory, disk)
 }
